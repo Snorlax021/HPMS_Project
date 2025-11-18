@@ -56,7 +56,7 @@ public class DashboardUI extends JFrame {
         panel.add(btnNewButton);
 
         // MAIN CENTER PANEL
-        JPanel dashboardPanel = new StaffDashboardPanel();
+        JPanel dashboardPanel =  new StaffDashboardPanel();
         contentPane.add(dashboardPanel, BorderLayout.CENTER);
     }
 }
