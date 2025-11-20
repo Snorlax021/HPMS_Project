@@ -12,6 +12,7 @@ import javax.swing.JTextField;
 import javax.swing.JButton;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import javax.swing.JOptionPane;
 
 public class LoginUI extends JFrame {
 
@@ -117,6 +118,29 @@ public class LoginUI extends JFrame {
 		btnNewButton_1.setBounds(196, 213, 108, 32);
 		btnNewButton_1.setContentAreaFilled(true);
 		panel_1.add(btnNewButton_1);
+		
+		btnNewButton_1.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				String username = textField.getText();
+				String password = textField_1.getText();
+
+				// Example validation logic (replace with actual authentication logic)
+				if (username.isEmpty() || password.isEmpty()) {
+					JOptionPane.showMessageDialog(null, "Please fill in all fields.", "Error", JOptionPane.ERROR_MESSAGE);
+					return;
+				}
+
+				// Example role-based navigation
+				if (username.equals("admin") && password.equals("admin123")) {
+					JOptionPane.showMessageDialog(null, "Login successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+					dispose(); // Close LoginUI
+					DashboardUI dashboard = new DashboardUI();
+					dashboard.setVisible(true);
+				} else {
+					JOptionPane.showMessageDialog(null, "Invalid credentials.", "Error", JOptionPane.ERROR_MESSAGE);
+				}
+			}
+		});
 
 	}
 }

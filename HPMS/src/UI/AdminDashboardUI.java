@@ -9,11 +9,9 @@ import java.awt.BorderLayout;
 import javax.swing.border.LineBorder;
 import javax.swing.JButton;
 import java.awt.Font;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
 import javax.swing.BoxLayout;
 
-public class StaffDashboardPanel extends JPanel {
+public class AdminDashboardUI extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 	private JPanel buttonPanel;
@@ -21,7 +19,7 @@ public class StaffDashboardPanel extends JPanel {
 	/**
 	 * Create the panel.
 	 */
-	public StaffDashboardPanel() {
+	public AdminDashboardUI() {
 		setBackground(new Color(173, 216, 230));
 		setBorder(new EmptyBorder(20, 20, 20, 20));
 		setLayout(null);
@@ -41,9 +39,9 @@ public class StaffDashboardPanel extends JPanel {
 		add(buttonPanel);
 		
 		// Add buttons
-		addButton(buttonPanel, "Patient Registration");
-		addButton(buttonPanel, "Appointments");
-		addButton(buttonPanel, "Billing");
+		addButton(buttonPanel, "User Management");
+		addButton(buttonPanel, "System Logs");
+		addButton(buttonPanel, "Settings");
 		addButton(buttonPanel, "Reports");
 	}
 

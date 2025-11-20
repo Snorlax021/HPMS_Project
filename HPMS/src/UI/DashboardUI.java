@@ -34,7 +34,7 @@ public class DashboardUI extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setBounds(100, 100, 1099, 750);
         setResizable(false);
-
+        
         contentPane = new JPanel(new BorderLayout());
         setContentPane(contentPane);
 
@@ -55,8 +55,23 @@ public class DashboardUI extends JFrame {
         btnNewButton.setBounds(980, 18, 90, 25);
         panel.add(btnNewButton);
 
+        JLabel roleLabel = new JLabel();
+        roleLabel.setForeground(Color.WHITE);
+        roleLabel.setFont(new Font("Artifakt Element Medium", Font.BOLD, 14));
+        roleLabel.setBounds(650, 0, 300, 60);
+        panel.add(roleLabel);
+
         // MAIN CENTER PANEL
-        JPanel dashboardPanel =  new StaffDashboardPanel();
-        contentPane.add(dashboardPanel, BorderLayout.CENTER);
+        JPanel dashboardPanel =  new AdminDashboardUI();       
+        		contentPane.add(dashboardPanel, BorderLayout.CENTER);
+
+        // Determine the role based on the panel
+        if (dashboardPanel instanceof AdminDashboardUI) {
+            roleLabel.setText("ADMIN");
+        } else if (dashboardPanel instanceof StaffDashboardPanel) {
+            roleLabel.setText("STAFF");
+        } else {
+            roleLabel.setText("USER");
+        }
     }
 }
