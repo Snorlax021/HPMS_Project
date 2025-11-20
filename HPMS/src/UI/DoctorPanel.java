@@ -9,11 +9,10 @@ import java.awt.BorderLayout;
 import javax.swing.border.LineBorder;
 import javax.swing.JButton;
 import java.awt.Font;
-import javax.swing.BoxLayout;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 
-public class AdminDashboardUI extends JPanel {
+public class DoctorPanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 	private JPanel buttonPanel;
@@ -22,7 +21,7 @@ public class AdminDashboardUI extends JPanel {
 	/**
 	 * Create the panel.
 	 */
-	public AdminDashboardUI() {
+	public DoctorPanel() {
 		setBackground(new Color(173, 216, 230));
 		setBorder(new EmptyBorder(20, 20, 20, 20));
 		setLayout(null);
@@ -42,21 +41,10 @@ public class AdminDashboardUI extends JPanel {
 		add(buttonPanel);
 		
 		// Add buttons
-		addButton(buttonPanel, "User Management");
-		
-		JButton button = new JButton("User Management");
-		button.setOpaque(true);
-		button.setFont(new Font("Tahoma", Font.BOLD, 13));
-		button.setFocusPainted(false);
-		button.setContentAreaFilled(false);
-		button.setBorderPainted(false);
-		button.setBorder(new EtchedBorder(EtchedBorder.RAISED));
-		button.setBackground(Color.WHITE);
-		button.setBounds(0, 51, 156, 51);
-		buttonPanel.add(button);
-		//addButton(buttonPanel, "System Logs");
-		//addButton(buttonPanel, "Settings");
-		//addButton(buttonPanel, "Reports");
+		addButton(buttonPanel, "Patient Records");
+		addButton(buttonPanel, "Appointments");
+		addButton(buttonPanel, "Prescriptions");
+		addButton(buttonPanel, "Reports");
 	}
 
 	private void addButton(JPanel panel, String text) {
