@@ -17,9 +17,10 @@ public class DoctorPanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 	private JPanel buttonPanel;
+	private JPanel mainContentPanel;
+	
 	private JButton activeButton = null; // Track the currently active button
 	private CardLayout cardLayout;
-	private JPanel mainContentPanel; // Declare mainContentPanel
 
 	/**
 	 * Create the panel.

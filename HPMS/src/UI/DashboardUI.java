@@ -72,9 +72,15 @@ public class DashboardUI extends JFrame {
         } else if ("DOCTOR".equalsIgnoreCase(role)) {
             dashboardPanel = new DoctorPanel();
             roleLabel.setText("DOCTOR");
+        } else if ("STAFF".equalsIgnoreCase(role)) {
+            dashboardPanel = new DoctorPanel();
+            roleLabel.setText("STAFF");
+        } else if ("USER".equalsIgnoreCase(role)) {
+            dashboardPanel = new PatientPanel();
+            roleLabel.setText("USER");
         } else {
             dashboardPanel = new JPanel(); // Default panel, you can customize this
-            roleLabel.setText("USER");
+            roleLabel.setText("Snorlax");
         }
         contentPane.add(dashboardPanel, BorderLayout.CENTER);
     }

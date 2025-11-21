@@ -142,6 +142,10 @@ public class LoginUI extends JFrame {
         String adminPassword = "admin123";
         String doctorUsername = "doctor";
         String doctorPassword = "doctor123";
+        String staffUsername = "staff";
+        String staffPassword = "staff123";
+        String userUsername = "user";
+        String userPassword = "user123";
 
         if (username.equals(adminUsername) && password.equals(adminPassword)) {
             // Open Admin Dashboard
@@ -155,13 +159,13 @@ public class LoginUI extends JFrame {
             dashboard.setVisible(true);
             this.dispose();
             
-        } else if (username.equals(doctorUsername) && password.equals(doctorPassword)) {
+        } else if (username.equals(staffUsername) && password.equals(staffPassword)) {
             // Open Doctor Dashboard
         	DashboardUI dashboard = new DashboardUI("STAFF");
             dashboard.setVisible(true);
             this.dispose();
             
-        }else if (username.equals(doctorUsername) && password.equals(doctorPassword)) {
+        }else if (username.equals(userUsername) && password.equals(userPassword)) {
             // Open Doctor Dashboard
         	DashboardUI dashboard = new DashboardUI("USER");
             dashboard.setVisible(true);
