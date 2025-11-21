@@ -17,12 +17,13 @@ public class DashboardUI extends JFrame {
 
     private static final long serialVersionUID = 1L;
     private JPanel contentPane;
+	protected static String dashboard;
 
     public static void main(String[] args) {
         EventQueue.invokeLater(new Runnable() {
             public void run() {
                 try {
-                    DashboardUI frame = new DashboardUI();
+                    DashboardUI frame = new DashboardUI(dashboard);
                     frame.setVisible(true);
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -31,7 +32,7 @@ public class DashboardUI extends JFrame {
         });
     }
 
-    public DashboardUI() {
+    public DashboardUI(String role) {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setBounds(100, 100, 1099, 750);
         setResizable(false);
@@ -64,16 +65,17 @@ public class DashboardUI extends JFrame {
         panel.add(roleLabel);
 
         // MAIN CENTER PANEL
-        JPanel dashboardPanel =  new AdminDashboardUI();       
-        		contentPane.add(dashboardPanel, BorderLayout.CENTER);
-
-        // Determine the role based on the panel
-        if (dashboardPanel instanceof AdminDashboardUI) {
+        JPanel dashboardPanel;
+        if ("ADMIN".equalsIgnoreCase(role)) {
+            dashboardPanel = new AdminDashboardPanel();
             roleLabel.setText("ADMIN");
-        } else if (dashboardPanel instanceof StaffDashboardPanel) {
-            roleLabel.setText("STAFF");
+        } else if ("DOCTOR".equalsIgnoreCase(role)) {
+            dashboardPanel = new DoctorPanel();
+            roleLabel.setText("DOCTOR");
         } else {
+            dashboardPanel = new JPanel(); // Default panel, you can customize this
             roleLabel.setText("USER");
         }
+        contentPane.add(dashboardPanel, BorderLayout.CENTER);
     }
 }

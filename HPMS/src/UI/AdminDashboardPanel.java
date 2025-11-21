@@ -21,7 +21,7 @@ import javax.swing.JTable;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
-public class AdminDashboardUI extends JPanel {
+public class AdminDashboardPanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 	private JPanel buttonPanel;
@@ -38,7 +38,7 @@ public class AdminDashboardUI extends JPanel {
 	/**
 	 * Create the panel.
 	 */
-	public AdminDashboardUI() {
+	public AdminDashboardPanel() {
 		setBackground(new Color(173, 216, 230));
 		setBorder(new EmptyBorder(20, 20, 20, 20));
 		setLayout(new BorderLayout(10, 10));
@@ -120,18 +120,16 @@ public class AdminDashboardUI extends JPanel {
 		userManagementPanel.add(addUserButton);
 
 		JButton viewUsersButton = new JButton("View Users");
+		
 		viewUsersButton.setBounds(20, 100, 120, 30);
 		userManagementPanel.add(viewUsersButton);
+		
+		JButton btnNewButton = new JButton("Delete User");
+		userManagementPanel.add(btnNewButton);
+		paymentHistoryPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 5, 5));
 
-		// Add content to the Payment History panel
-		JLabel paymentHistoryLabel = new JLabel("Payment History");
-		paymentHistoryLabel.setFont(new Font("Tahoma", Font.BOLD, 16));
-		paymentHistoryLabel.setBounds(20, 20, 200, 30);
-		paymentHistoryPanel.add(paymentHistoryLabel);
-
-		JTable paymentTable = new JTable(new Object[][] { {"Date", "Amount", "Description"} }, new Object[] {"Date", "Amount", "Description"});
+		JTable paymentTable = new JTable(new Object[][] { {"Date","Name", "Amount", "Description"} }, new Object[] {"Date","Name", "Amount", "Description"});
 		JScrollPane paymentScrollPane = new JScrollPane(paymentTable);
-		paymentScrollPane.setBounds(20, 60, 400, 200);
 		paymentHistoryPanel.add(paymentScrollPane);
 
 		// Add content to the Summary panel

@@ -145,20 +145,28 @@ public class LoginUI extends JFrame {
 
         if (username.equals(adminUsername) && password.equals(adminPassword)) {
             // Open Admin Dashboard
-            AdminDashboardUI adminDashboard = new AdminDashboardUI();
-            JFrame frame = new JFrame("Admin Dashboard");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setContentPane(adminDashboard);
-            frame.setSize(800, 600);
-            frame.setVisible(true);
+            DashboardUI dashboard = new DashboardUI("ADMIN");
+            dashboard.setVisible(true);
+            this.dispose();
+            
         } else if (username.equals(doctorUsername) && password.equals(doctorPassword)) {
             // Open Doctor Dashboard
-            DoctorPanel doctorDashboard = new DoctorPanel();
-            JFrame frame = new JFrame("Doctor Dashboard");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setContentPane(doctorDashboard);
-            frame.setSize(800, 600);
-            frame.setVisible(true);
+        	DashboardUI dashboard = new DashboardUI("DOCTOR");
+            dashboard.setVisible(true);
+            this.dispose();
+            
+        } else if (username.equals(doctorUsername) && password.equals(doctorPassword)) {
+            // Open Doctor Dashboard
+        	DashboardUI dashboard = new DashboardUI("STAFF");
+            dashboard.setVisible(true);
+            this.dispose();
+            
+        }else if (username.equals(doctorUsername) && password.equals(doctorPassword)) {
+            // Open Doctor Dashboard
+        	DashboardUI dashboard = new DashboardUI("USER");
+            dashboard.setVisible(true);
+            this.dispose();
+        
         } else {
             JOptionPane.showMessageDialog(this, "Invalid username or password", "Login Failed", JOptionPane.ERROR_MESSAGE);
         }
