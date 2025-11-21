@@ -11,6 +11,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 
 public class DashboardUI extends JFrame {
 
@@ -56,9 +57,10 @@ public class DashboardUI extends JFrame {
         panel.add(btnNewButton);
 
         JLabel roleLabel = new JLabel();
+        roleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         roleLabel.setForeground(Color.WHITE);
         roleLabel.setFont(new Font("Artifakt Element Medium", Font.BOLD, 14));
-        roleLabel.setBounds(650, 0, 300, 60);
+        roleLabel.setBounds(861, 0, 109, 60);
         panel.add(roleLabel);
 
         // MAIN CENTER PANEL

@@ -130,17 +130,37 @@ public class LoginUI extends JFrame {
 					return;
 				}
 
-				// Example role-based navigation
-				if (username.equals("admin") && password.equals("admin123")) {
-					JOptionPane.showMessageDialog(null, "Login successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
-					dispose(); // Close LoginUI
-					DashboardUI dashboard = new DashboardUI();
-					dashboard.setVisible(true);
-				} else {
-					JOptionPane.showMessageDialog(null, "Invalid credentials.", "Error", JOptionPane.ERROR_MESSAGE);
-				}
+				handleLogin(username, password);
 			}
 		});
 
 	}
+	
+	private void handleLogin(String username, String password) {
+        // Temporary accounts for testing
+        String adminUsername = "admin";
+        String adminPassword = "admin123";
+        String doctorUsername = "doctor";
+        String doctorPassword = "doctor123";
+
+        if (username.equals(adminUsername) && password.equals(adminPassword)) {
+            // Open Admin Dashboard
+            AdminDashboardUI adminDashboard = new AdminDashboardUI();
+            JFrame frame = new JFrame("Admin Dashboard");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setContentPane(adminDashboard);
+            frame.setSize(800, 600);
+            frame.setVisible(true);
+        } else if (username.equals(doctorUsername) && password.equals(doctorPassword)) {
+            // Open Doctor Dashboard
+            DoctorPanel doctorDashboard = new DoctorPanel();
+            JFrame frame = new JFrame("Doctor Dashboard");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setContentPane(doctorDashboard);
+            frame.setSize(800, 600);
+            frame.setVisible(true);
+        } else {
+            JOptionPane.showMessageDialog(this, "Invalid username or password", "Login Failed", JOptionPane.ERROR_MESSAGE);
+        }
+    }
 }
