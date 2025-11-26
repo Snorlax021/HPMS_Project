@@ -1,188 +1,488 @@
 package UI;
 
-import javax.swing.JPanel;
+import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.EtchedBorder;
-
-import java.awt.Color;
-import java.awt.BorderLayout;
-import java.awt.GridLayout;
 import javax.swing.border.LineBorder;
-import javax.swing.JButton;
-import java.awt.Font;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.CardLayout;
-import javax.swing.JLabel;
-import javax.swing.JTable;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class AdminDashboardPanel extends JPanel {
+    private static final long serialVersionUID = 1L;
 
-	private static final long serialVersionUID = 1L;
-	private JPanel buttonPanel;
-	private JPanel mainContentPanel;
+    // THEME CONSTANTS
+    private static final Color COLOR_BG = Color.WHITE;
+    private static final Color COLOR_SIDEBAR_BG = new Color(245, 247, 250);
+    private static final Color COLOR_PRIMARY = new Color(60, 120, 200);
+    private static final Color COLOR_PRIMARY_HOVER = new Color(80, 140, 220);
+    private static final Color COLOR_ACTIVE = new Color(100, 160, 240);
+    private static final Color COLOR_BORDER = new Color(210, 215, 220);
+    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 20);
+    private static final Font FONT_SECTION = new Font("Segoe UI", Font.BOLD, 16);
+    private static final Font FONT_NORMAL = new Font("Segoe UI", Font.PLAIN, 14);
 
-	private JButton activeButton = null; // Track the currently active button
-	private JButton dashboardButton;
-	private JButton userManagementButton;
-	private JButton paymentHistoryButton;
-	private JButton summaryButton;
+    // Layout + navigation
+    private CardLayout cardLayout;
+    private JPanel mainContentPanel;
+    private JPanel sideNavPanel;
+    private JButton btnDashboard;
+    private JButton btnUsers;
+    private JButton btnPayments;
+    private JButton btnSummary;
+    private JButton activeButton;
 
-	private CardLayout cardLayout;
+    // Dashboard dynamic labels
+    private JLabel lblPatientsValue;
+    private JLabel lblDoctorsValue;
+    private JLabel lblStaffValue;
+    private JLabel lblRevenueValue;
 
-	/**
-	 * Create the panel.
-	 */
-	public AdminDashboardPanel() {
-		setBackground(new Color(173, 216, 230));
-		setBorder(new EmptyBorder(20, 20, 20, 20));
-		setLayout(new BorderLayout(10, 10));
+    // Tables (exposed for future data binding)
+    private JTable userTable;
+    private JTable paymentTable;
 
-		// Button panel
-		buttonPanel = new JPanel();
-		buttonPanel.setBackground(new Color(173, 216, 230));
-		buttonPanel.setLayout(new GridLayout(4, 1, 5, 5));
+    public AdminDashboardPanel() {
+        setBackground(COLOR_BG);
+        setBorder(new EmptyBorder(8, 8, 8, 8));
+        setLayout(new BorderLayout(8, 8));
 
-		// Define buttons
-		dashboardButton = new JButton("Dashboard");
-		userManagementButton = new JButton("User Management");
-		paymentHistoryButton = new JButton("Payment History");
-		summaryButton = new JButton("Summary");
+        add(createHeader(), BorderLayout.NORTH);
+        add(createSideBar(), BorderLayout.WEST);
+        add(createMainContent(), BorderLayout.CENTER);
 
-		// Add hover and click effects
-		addHoverAndClickEffects(dashboardButton, "Dashboard");
-		addHoverAndClickEffects(userManagementButton, "User Management");
-		addHoverAndClickEffects(paymentHistoryButton, "Payment History");
-		addHoverAndClickEffects(summaryButton, "Summary");
+        // Default view
+        setActiveButton(btnDashboard, "DASHBOARD");
+    }
 
-		// Add buttons to the panel
-		buttonPanel.add(dashboardButton);
-		buttonPanel.add(userManagementButton);
-		buttonPanel.add(paymentHistoryButton);
-		buttonPanel.add(summaryButton);
+    // HEADER BAR -------------------------------------------------------
+    private JComponent createHeader() {
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBorder(new LineBorder(COLOR_BORDER));
+        header.setBackground(Color.WHITE);
+        header.setPreferredSize(new Dimension(0, 55));
 
-		add(buttonPanel, BorderLayout.WEST);
+        JLabel title = new JLabel("Admin Dashboard", SwingConstants.LEFT);
+        title.setFont(FONT_TITLE);
+        title.setBorder(new EmptyBorder(0, 16, 0, 0));
+        title.setForeground(COLOR_PRIMARY.darker());
 
-		// Main content panel with CardLayout
-		mainContentPanel = new JPanel();
-		cardLayout = new CardLayout();
-		mainContentPanel.setLayout(cardLayout);
-		mainContentPanel.setBackground(Color.WHITE);
-		mainContentPanel.setBorder(new LineBorder(new Color(0, 0, 0)));
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
+        right.setOpaque(false);
+        JButton btnRefresh = new JButton("Refresh Data");
+        styleSecondaryButton(btnRefresh);
+        btnRefresh.addActionListener(e -> JOptionPane.showMessageDialog(this, "Data refreshed (placeholder)", "Info", JOptionPane.INFORMATION_MESSAGE));
+        right.add(btnRefresh);
 
-		// Add blank panels for each section
-		JPanel dashboardPanel = new JPanel();
-		dashboardPanel.setBackground(Color.WHITE);
-		JPanel userManagementPanel = new JPanel();
-		userManagementPanel.setBackground(Color.WHITE);
-		JPanel paymentHistoryPanel = new JPanel();
-		paymentHistoryPanel.setBackground(Color.WHITE);
-		JPanel summaryPanel = new JPanel();
-		summaryPanel.setBackground(Color.WHITE);
+        header.add(title, BorderLayout.WEST);
+        header.add(right, BorderLayout.EAST);
+        return header;
+    }
 
-		mainContentPanel.add(dashboardPanel, "Dashboard");
-		dashboardPanel.setLayout(null);
-		mainContentPanel.add(userManagementPanel, "User Management");
-		mainContentPanel.add(paymentHistoryPanel, "Payment History");
-		mainContentPanel.add(summaryPanel, "Summary");
+    // SIDEBAR ----------------------------------------------------------
+    private JComponent createSideBar() {
+        sideNavPanel = new JPanel();
+        sideNavPanel.setLayout(new BoxLayout(sideNavPanel, BoxLayout.Y_AXIS));
+        sideNavPanel.setBackground(COLOR_SIDEBAR_BG);
+        sideNavPanel.setBorder(new LineBorder(COLOR_BORDER));
+        sideNavPanel.setPreferredSize(new Dimension(190, 0));
 
-		add(mainContentPanel, BorderLayout.CENTER);
-		// Ensure the CardLayout remains active for the mainContentPanel
-		mainContentPanel.setLayout(cardLayout);
+        btnDashboard = createNavButton("Dashboard", "DASHBOARD");
+        btnUsers = createNavButton("User Management", "USERS");
+        btnPayments = createNavButton("Payments", "PAYMENTS");
+        btnSummary = createNavButton("Summary", "SUMMARY");
 
-		// Add content to the Dashboard panel
-		JLabel dashboardLabel = new JLabel("Dashboard Overview");
-		dashboardLabel.setFont(new Font("Tahoma", Font.BOLD, 16));
-		dashboardLabel.setBounds(20, 20, 200, 30);
-		dashboardPanel.add(dashboardLabel);
+        sideNavPanel.add(Box.createVerticalStrut(6));
+        sideNavPanel.add(btnDashboard);
+        sideNavPanel.add(btnUsers);
+        sideNavPanel.add(btnPayments);
+        sideNavPanel.add(btnSummary);
+        sideNavPanel.add(Box.createVerticalGlue());
 
-		JLabel totalPatientsLabel = new JLabel("Total Patients: 0");
-		totalPatientsLabel.setBounds(20, 60, 200, 30);
-		dashboardPanel.add(totalPatientsLabel);
+        return sideNavPanel;
+    }
 
-		JLabel totalDoctorsLabel = new JLabel("Total Doctors: 0");
-		totalDoctorsLabel.setBounds(20, 100, 200, 30);
-		dashboardPanel.add(totalDoctorsLabel);
+    private JButton createNavButton(String text, String card) {
+        JButton b = new JButton(text);
+        b.setAlignmentX(Component.CENTER_ALIGNMENT);
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        b.setFont(FONT_NORMAL);
+        b.setBackground(Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorder(new LineBorder(COLOR_BORDER));
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-		// Add content to the User Management panel
-		JLabel userManagementLabel = new JLabel("User Management");
-		userManagementLabel.setFont(new Font("Tahoma", Font.BOLD, 16));
-		userManagementLabel.setBounds(20, 20, 200, 30);
-		userManagementPanel.add(userManagementLabel);
+        b.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { if (b != activeButton) b.setBackground(COLOR_PRIMARY_HOVER); }
+            @Override public void mouseExited(MouseEvent e) { if (b != activeButton) b.setBackground(Color.WHITE); }
+        });
+        b.addActionListener(e -> setActiveButton(b, card));
+        return b;
+    }
 
-		JButton addUserButton = new JButton("Add User");
-		addUserButton.setBounds(20, 60, 120, 30);
-		userManagementPanel.add(addUserButton);
+    private void setActiveButton(JButton button, String card) {
+        if (activeButton != null) {
+            activeButton.setBackground(Color.WHITE);
+            activeButton.setForeground(Color.BLACK);
+        }
+        activeButton = button;
+        activeButton.setBackground(COLOR_ACTIVE);
+        activeButton.setForeground(Color.WHITE);
+        cardLayout.show(mainContentPanel, card);
+    }
 
-		JButton viewUsersButton = new JButton("View Users");
-		
-		viewUsersButton.setBounds(20, 100, 120, 30);
-		userManagementPanel.add(viewUsersButton);
-		
-		JButton btnNewButton = new JButton("Delete User");
-		userManagementPanel.add(btnNewButton);
-		paymentHistoryPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 5, 5));
+    // MAIN CONTENT -----------------------------------------------------
+    private JComponent createMainContent() {
+        mainContentPanel = new JPanel();
+        cardLayout = new CardLayout();
+        mainContentPanel.setLayout(cardLayout);
+        mainContentPanel.setBorder(new LineBorder(COLOR_BORDER));
 
-		JTable paymentTable = new JTable(new Object[][] { {"Date","Name", "Amount", "Description"} }, new Object[] {"Date","Name", "Amount", "Description"});
-		JScrollPane paymentScrollPane = new JScrollPane(paymentTable);
-		paymentHistoryPanel.add(paymentScrollPane);
+        mainContentPanel.add(buildDashboardPanel(), "DASHBOARD");
+        mainContentPanel.add(buildUserPanel(), "USERS");
+        mainContentPanel.add(buildPaymentPanel(), "PAYMENTS");
+        mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
+        return mainContentPanel;
+    }
 
-		// Add content to the Summary panel
-		JLabel summaryLabel = new JLabel("Summary");
-		summaryLabel.setFont(new Font("Tahoma", Font.BOLD, 16));
-		summaryLabel.setBounds(20, 20, 200, 30);
-		summaryPanel.add(summaryLabel);
+    // DASHBOARD PANEL --------------------------------------------------
+    private JPanel buildDashboardPanel() {
+        JPanel root = new JPanel(new BorderLayout(12, 12));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
 
-		JTextArea summaryTextArea = new JTextArea("Summary details will appear here.");
-		summaryTextArea.setBounds(20, 60, 400, 200);
-		summaryPanel.add(summaryTextArea);
+        JLabel header = new JLabel("System Overview", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
 
-		// Highlight the Dashboard button by default
-		resetActiveButton();
-		activeButton = dashboardButton;
-		dashboardButton.setBackground(Color.CYAN);
-		cardLayout.show(mainContentPanel, "Dashboard");
-	}
+        JPanel statsGrid = new JPanel(new GridLayout(1, 4, 12, 12));
+        statsGrid.setOpaque(false);
 
-	private void resetActiveButton() {
-		if (activeButton != null) {
-			activeButton.setBackground(Color.WHITE);
-			activeButton = null;
-		}
-	}
+        lblPatientsValue = new JLabel("0", SwingConstants.CENTER);
+        lblDoctorsValue = new JLabel("0", SwingConstants.CENTER);
+        lblStaffValue = new JLabel("0", SwingConstants.CENTER);
+        lblRevenueValue = new JLabel("$0.00", SwingConstants.CENTER);
 
-	private void addHoverAndClickEffects(JButton button, String panelName) {
-		button.setPreferredSize(new Dimension(156, 51));
-		button.setFont(new Font("Tahoma", Font.BOLD, 13));
-		button.setBorderPainted(false);
-		button.setFocusPainted(false);
-		button.setContentAreaFilled(true);
-		button.setOpaque(true);
-		button.setBackground(Color.WHITE);
-		button.setBorder(new EtchedBorder(EtchedBorder.RAISED));
+        statsGrid.add(createStatCard("Patients", lblPatientsValue));
+        statsGrid.add(createStatCard("Doctors", lblDoctorsValue));
+        statsGrid.add(createStatCard("Staff", lblStaffValue));
+        statsGrid.add(createStatCard("Revenue", lblRevenueValue));
 
-		button.addMouseListener(new java.awt.event.MouseAdapter() {
-			public void mouseEntered(java.awt.event.MouseEvent evt) {
-				if (button != activeButton)
-					button.setBackground(Color.LIGHT_GRAY);
-			}
+        root.add(statsGrid, BorderLayout.CENTER);
 
-			public void mouseExited(java.awt.event.MouseEvent evt) {
-				if (button != activeButton)
-					button.setBackground(Color.WHITE);
-			}
-		});
+        JTextArea info = new JTextArea("Welcome to the Admin Dashboard.\nUse sidebar navigation to manage users, review payments, and view summaries.\nThis layout is responsive and ready for data binding.");
+        info.setFont(FONT_NORMAL);
+        info.setEditable(false);
+        info.setLineWrap(true);
+        info.setWrapStyleWord(true);
+        info.setBorder(new EmptyBorder(8, 12, 8, 12));
+        root.add(new JScrollPane(info), BorderLayout.SOUTH);
+        return root;
+    }
 
-		button.addActionListener(e -> {
-			resetActiveButton();
-			activeButton = button;
-			button.setBackground(Color.CYAN);
-			cardLayout.show(mainContentPanel, panelName); // Switch to the corresponding panel
-		});
-	}
+    private JPanel createStatCard(String label, JLabel valueLabel) {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(Color.WHITE);
+        wrapper.setBorder(new LineBorder(COLOR_BORDER));
+        wrapper.setPreferredSize(new Dimension(160, 120));
+
+        JLabel title = new JLabel(label, SwingConstants.CENTER);
+        title.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        title.setForeground(COLOR_PRIMARY.darker());
+        title.setBorder(new EmptyBorder(6, 6, 0, 6));
+        wrapper.add(title, BorderLayout.NORTH);
+
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        valueLabel.setForeground(COLOR_PRIMARY);
+        wrapper.add(valueLabel, BorderLayout.CENTER);
+
+        return wrapper;
+    }
+
+    // USER MANAGEMENT PANEL --------------------------------------------
+    private JPanel buildUserPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JLabel header = new JLabel("User Management", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
+
+        JToolBar toolbar = new JToolBar();
+        toolbar.setFloatable(false);
+        styleToolbarButton(toolbar, "Add", this::openAddUserDialog);
+        styleToolbarButton(toolbar, "Edit", this::openEditUserDialog);
+        styleToolbarButton(toolbar, "Delete", this::openDeleteUserDialog);
+        styleToolbarButton(toolbar, "Export", this::openExportDialog);
+        root.add(toolbar, BorderLayout.SOUTH);
+
+        String[] cols = {"ID", "Name", "Role", "Status"};
+        Object[][] data = {{1, "John Doe", "Doctor", "Active"}, {2, "Jane Smith", "Staff", "Active"}, {3, "Robert Admin", "Admin", "Disabled"}};
+        userTable = new JTable(new DefaultTableModel(data, cols));
+        root.add(new JScrollPane(userTable), BorderLayout.CENTER);
+        return root;
+    }
+
+    private void styleToolbarButton(JToolBar bar, String text, Runnable action) {
+        JButton b = new JButton(text);
+        b.setFont(FONT_NORMAL);
+        b.addActionListener(e -> action.run());
+        bar.add(b);
+    }
+
+    private void showInfo(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Action", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void styleSecondaryButton(JButton b) {
+        b.setFont(FONT_NORMAL);
+        b.setBackground(Color.WHITE);
+        b.setBorder(new LineBorder(COLOR_BORDER));
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { b.setBackground(COLOR_PRIMARY_HOVER); }
+            @Override public void mouseExited(MouseEvent e) { b.setBackground(Color.WHITE); }
+        });
+    }
+
+    // PAYMENT PANEL ----------------------------------------------------
+    private JPanel buildPaymentPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JLabel header = new JLabel("Payment History", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
+
+        String[] cols = {"Date", "Name", "Amount", "Description"};
+        Object[][] data = {{"2025-01-10", "Patient A", "$120.00", "Consultation"}, {"2025-01-11", "Patient B", "$450.00", "Procedure"}};
+        paymentTable = new JTable(new DefaultTableModel(data, cols));
+        root.add(new JScrollPane(paymentTable), BorderLayout.CENTER);
+
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        footer.setOpaque(false);
+        JButton btnExport = new JButton("Export CSV");
+        styleSecondaryButton(btnExport);
+        btnExport.addActionListener(e -> openExportPaymentDialog());
+        footer.add(btnExport);
+        root.add(footer, BorderLayout.SOUTH);
+        return root;
+    }
+
+    // SUMMARY PANEL ----------------------------------------------------
+    private JPanel buildSummaryPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JLabel header = new JLabel("Summary Report", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
+
+        JTextArea area = new JTextArea();
+        area.setFont(FONT_NORMAL);
+        area.setText("Daily Summary Placeholder:\n\n- Patients Admitted: 12\n- Procedures Completed: 5\n- Discharges: 7\n\nAdd analytics, charts, and export features here.");
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        root.add(new JScrollPane(area), BorderLayout.CENTER);
+
+        JButton btnGenerate = new JButton("Generate Detailed Report");
+        styleSecondaryButton(btnGenerate);
+        btnGenerate.addActionListener(e -> openGenerateSummaryDialog());
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        footer.setOpaque(false);
+        footer.add(btnGenerate);
+        root.add(footer, BorderLayout.SOUTH);
+        return root;
+    }
+
+    // PUBLIC API -------------------------------------------------------
+    public void updateStats(int patients, int doctors, int staff, double revenue) {
+        if (lblPatientsValue != null) lblPatientsValue.setText(String.valueOf(patients));
+        if (lblDoctorsValue != null) lblDoctorsValue.setText(String.valueOf(doctors));
+        if (lblStaffValue != null) lblStaffValue.setText(String.valueOf(staff));
+        if (lblRevenueValue != null) lblRevenueValue.setText("$" + String.format("%,.2f", revenue));
+    }
+
+    public JTable getUserTable() { return userTable; }
+    public JTable getPaymentTable() { return paymentTable; }
+
+    // DIALOG METHODS ---------------------------------------------------
+    private void openAddUserDialog() {
+        JPanel panel = new JPanel(new GridLayout(5, 2, 8, 8));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        panel.add(new JLabel("Name:"));
+        JTextField nameField = new JTextField();
+        panel.add(nameField);
+
+        panel.add(new JLabel("Email:"));
+        JTextField emailField = new JTextField();
+        panel.add(emailField);
+
+        panel.add(new JLabel("Role:"));
+        String[] roles = {"Doctor", "Staff", "Admin", "Patient"};
+        JComboBox<String> roleCombo = new JComboBox<>(roles);
+        panel.add(roleCombo);
+
+        panel.add(new JLabel("Status:"));
+        String[] statuses = {"Active", "Disabled"};
+        JComboBox<String> statusCombo = new JComboBox<>(statuses);
+        panel.add(statusCombo);
+
+        panel.add(new JLabel("Password:"));
+        JPasswordField passField = new JPasswordField();
+        panel.add(passField);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Add New User", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            String name = nameField.getText();
+            String email = emailField.getText();
+            String role = (String) roleCombo.getSelectedItem();
+            String status = (String) statusCombo.getSelectedItem();
+            
+            if (!name.isEmpty() && !email.isEmpty()) {
+                DefaultTableModel model = (DefaultTableModel) userTable.getModel();
+                int newId = model.getRowCount() + 1;
+                model.addRow(new Object[]{newId, name, role, status});
+                JOptionPane.showMessageDialog(this, "User added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Please fill in all fields!", "Warning", JOptionPane.WARNING_MESSAGE);
+            }
+        }
+    }
+
+    private void openEditUserDialog() {
+        int selectedRow = userTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a user to edit!", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        DefaultTableModel model = (DefaultTableModel) userTable.getModel();
+        JPanel panel = new JPanel(new GridLayout(4, 2, 8, 8));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        panel.add(new JLabel("Name:"));
+        JTextField nameField = new JTextField(model.getValueAt(selectedRow, 1).toString());
+        panel.add(nameField);
+
+        panel.add(new JLabel("Role:"));
+        String[] roles = {"Doctor", "Staff", "Admin", "Patient"};
+        JComboBox<String> roleCombo = new JComboBox<>(roles);
+        roleCombo.setSelectedItem(model.getValueAt(selectedRow, 2));
+        panel.add(roleCombo);
+
+        panel.add(new JLabel("Status:"));
+        String[] statuses = {"Active", "Disabled"};
+        JComboBox<String> statusCombo = new JComboBox<>(statuses);
+        statusCombo.setSelectedItem(model.getValueAt(selectedRow, 3));
+        panel.add(statusCombo);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Edit User", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            model.setValueAt(nameField.getText(), selectedRow, 1);
+            model.setValueAt(roleCombo.getSelectedItem(), selectedRow, 2);
+            model.setValueAt(statusCombo.getSelectedItem(), selectedRow, 3);
+            JOptionPane.showMessageDialog(this, "User updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void openDeleteUserDialog() {
+        int selectedRow = userTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a user to delete!", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Are you sure you want to delete this user?", 
+            "Confirm Delete", 
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.QUESTION_MESSAGE);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            DefaultTableModel model = (DefaultTableModel) userTable.getModel();
+            model.removeRow(selectedRow);
+            JOptionPane.showMessageDialog(this, "User deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void openExportDialog() {
+        String[] options = {"CSV", "Excel", "PDF"};
+        int choice = JOptionPane.showOptionDialog(this,
+            "Choose export format:",
+            "Export Users",
+            JOptionPane.YES_NO_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]);
+
+        if (choice >= 0) {
+            String format = options[choice];
+            JOptionPane.showMessageDialog(this, 
+                "Users exported successfully as " + format + "!", 
+                "Success", 
+                JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void openExportPaymentDialog() {
+        String[] options = {"CSV", "Excel", "PDF"};
+        int choice = JOptionPane.showOptionDialog(this,
+            "Choose export format for payment history:",
+            "Export Payments",
+            JOptionPane.YES_NO_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]);
+
+        if (choice >= 0) {
+            String format = options[choice];
+            JOptionPane.showMessageDialog(this, 
+                "Payment history exported successfully as " + format + "!", 
+                "Success", 
+                JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void openGenerateSummaryDialog() {
+        JPanel panel = new JPanel(new GridLayout(3, 2, 8, 8));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        panel.add(new JLabel("Report Type:"));
+        String[] reportTypes = {"Daily", "Weekly", "Monthly", "Yearly"};
+        JComboBox<String> typeCombo = new JComboBox<>(reportTypes);
+        panel.add(typeCombo);
+
+        panel.add(new JLabel("Start Date:"));
+        JTextField startDate = new JTextField("2025-01-01");
+        panel.add(startDate);
+
+        panel.add(new JLabel("End Date:"));
+        JTextField endDate = new JTextField("2025-01-31");
+        panel.add(endDate);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Generate Summary Report", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            String reportType = (String) typeCombo.getSelectedItem();
+            JOptionPane.showMessageDialog(this, 
+                "Generating " + reportType + " report...\nReport will be ready shortly!", 
+                "Report Generation", 
+                JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
 }

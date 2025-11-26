@@ -2,192 +2,394 @@ package UI;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.EtchedBorder;
 import javax.swing.border.LineBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class StaffDashboardPanel extends JPanel {
-
     private static final long serialVersionUID = 1L;
+    // THEME (aligned with Admin/Doctor/Patient dashboards)
+    private static final Color COLOR_BG = Color.WHITE;
+    private static final Color COLOR_SIDEBAR_BG = new Color(245, 247, 250);
+    private static final Color COLOR_PRIMARY = new Color(60, 120, 200);
+    private static final Color COLOR_PRIMARY_HOVER = new Color(80, 140, 220);
+    private static final Color COLOR_ACTIVE = new Color(100, 160, 240);
+    private static final Color COLOR_BORDER = new Color(210, 215, 220);
+    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 20);
+    private static final Font FONT_SECTION = new Font("Segoe UI", Font.BOLD, 16);
+    private static final Font FONT_NORMAL = new Font("Segoe UI", Font.PLAIN, 14);
 
-    private JPanel buttonPanel;
-    private JPanel mainContentPanel;
     private CardLayout cardLayout;
-    private JButton activeButton = null;
+    private JPanel mainContentPanel;
+    private JPanel sideNavPanel;
+    private JButton btnSummary;
+    private JButton btnPatientReg;
+    private JButton btnMedical;
+    private JButton btnBilling;
+    private JButton btnLab;
+    private JButton btnAdmission;
+    private JButton activeButton;
 
-    // Staff Buttons
-    private JButton patientRegButton;
-    private JButton medicalRecordsButton;
-    private JButton billingHistoryButton;
-    private JButton labTestButton;
-    private JButton admissionButton;
-    private JButton summaryButton;
+    private String subRole; // REGISTRATION, BILLING, LAB (optional)
 
-    public StaffDashboardPanel() {
-        setBackground(new Color(173, 216, 230));
-        setBorder(new EmptyBorder(20, 20, 20, 20));
-        setLayout(new BorderLayout(10, 10));  // Use BorderLayout for resizability
+    // Tables
+    private JTable patientRegTable;
+    private JTable medicalRecordTable;
+    private JTable billingTable;
+    private JTable labTable;
+    private JTable admissionTable;
 
-        // LEFT BUTTON PANEL
-        buttonPanel = new JPanel();
-        buttonPanel.setBackground(new Color(173, 216, 230));
-        buttonPanel.setLayout(new GridLayout(6, 1, 5, 5));
-        buttonPanel.setPreferredSize(new Dimension(200, 300));  // Preferred size instead of bounds
+    // Summary dynamic labels
+    private JLabel lblTotalPatients;
+    private JLabel lblPendingBills;
+    private JLabel lblLabPending;
 
-        // Create buttons
-        patientRegButton = new JButton("Patient Registration & Records");
-        medicalRecordsButton = new JButton("Medical & Treatment Records");
-        billingHistoryButton = new JButton("Billing & Payment History");
-        labTestButton = new JButton("Laboratory & Test Management");
-        admissionButton = new JButton("Admission & Discharge Management");
-        summaryButton = new JButton("Dashboard & Summary");
+    public StaffDashboardPanel() { this(null); }
+    public StaffDashboardPanel(String subRole) {
+        this.subRole = subRole != null ? subRole.toUpperCase() : null;
+        setBackground(COLOR_BG);
+        setBorder(new EmptyBorder(8, 8, 8, 8));
+        setLayout(new BorderLayout(8, 8));
 
-        // Add hover + click effects
-        addHoverAndClick(patientRegButton, "PatientReg");
-        addHoverAndClick(medicalRecordsButton, "MedicalRecords");
-        addHoverAndClick(billingHistoryButton, "BillingHistory");
-        addHoverAndClick(labTestButton, "LabTest");
-        addHoverAndClick(admissionButton, "Admission");
-        addHoverAndClick(summaryButton, "Summary");
+        add(createHeader(), BorderLayout.NORTH);
+        add(createSideBar(), BorderLayout.WEST);
+        add(createMainContent(), BorderLayout.CENTER);
 
-        // Add buttons to left panel
-        buttonPanel.add(summaryButton);
-        buttonPanel.add(patientRegButton);
-        buttonPanel.add(medicalRecordsButton);
-        buttonPanel.add(billingHistoryButton);
-        buttonPanel.add(labTestButton);
-        buttonPanel.add(admissionButton);
-        
+        // Default card selection based on subRole
+        if (this.subRole == null) {
+            setActiveButton(btnSummary, "SUMMARY");
+        } else {
+            switch (this.subRole) {
+                case "REGISTRATION": setActiveButton(btnPatientReg, "PATIENT_REG"); break;
+                case "BILLING": setActiveButton(btnBilling, "BILLING"); break;
+                case "LAB": setActiveButton(btnLab, "LAB"); break;
+                default: setActiveButton(btnSummary, "SUMMARY");
+            }
+        }
+    }
 
-        add(buttonPanel, BorderLayout.WEST);
+    private JComponent createHeader() {
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(Color.WHITE);
+        header.setBorder(new LineBorder(COLOR_BORDER));
+        header.setPreferredSize(new Dimension(0, 55));
 
-        // MAIN CONTENT PANEL (CardLayout)
+        JLabel title = new JLabel("Staff Dashboard", SwingConstants.LEFT);
+        title.setFont(FONT_TITLE);
+        title.setForeground(COLOR_PRIMARY.darker());
+        title.setBorder(new EmptyBorder(0, 16, 0, 0));
+        header.add(title, BorderLayout.WEST);
+
+        if (subRole != null) {
+            JLabel roleBanner = new JLabel("Sub-Role: " + subRole, SwingConstants.RIGHT);
+            roleBanner.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            roleBanner.setForeground(COLOR_PRIMARY);
+            roleBanner.setBorder(new EmptyBorder(0, 0, 0, 16));
+            header.add(roleBanner, BorderLayout.EAST);
+        }
+        return header;
+    }
+
+    private JComponent createSideBar() {
+        sideNavPanel = new JPanel();
+        sideNavPanel.setLayout(new BoxLayout(sideNavPanel, BoxLayout.Y_AXIS));
+        sideNavPanel.setBackground(COLOR_SIDEBAR_BG);
+        sideNavPanel.setBorder(new LineBorder(COLOR_BORDER));
+        sideNavPanel.setPreferredSize(new Dimension(190, 0));
+
+        btnSummary = createNavButton("Summary", "SUMMARY");
+        btnPatientReg = createNavButton("Patient Registration", "PATIENT_REG");
+        btnMedical = createNavButton("Medical Records", "MEDICAL");
+        btnBilling = createNavButton("Billing History", "BILLING");
+        btnLab = createNavButton("Lab Tests", "LAB");
+        btnAdmission = createNavButton("Admission", "ADMISSION");
+
+        sideNavPanel.add(Box.createVerticalStrut(6));
+        sideNavPanel.add(btnSummary);
+        sideNavPanel.add(btnPatientReg);
+        sideNavPanel.add(btnMedical);
+        sideNavPanel.add(btnBilling);
+        sideNavPanel.add(btnLab);
+        sideNavPanel.add(btnAdmission);
+        sideNavPanel.add(Box.createVerticalGlue());
+        return sideNavPanel;
+    }
+
+    private JButton createNavButton(String text, String card) {
+        JButton b = new JButton(text);
+        b.setAlignmentX(Component.CENTER_ALIGNMENT);
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        b.setFont(FONT_NORMAL);
+        b.setBackground(Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorder(new LineBorder(COLOR_BORDER));
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { if (b != activeButton) b.setBackground(COLOR_PRIMARY_HOVER); }
+            @Override public void mouseExited(MouseEvent e) { if (b != activeButton) b.setBackground(Color.WHITE); }
+        });
+        b.addActionListener(e -> setActiveButton(b, card));
+        return b;
+    }
+
+    private void setActiveButton(JButton button, String card) {
+        if (activeButton != null) {
+            activeButton.setBackground(Color.WHITE);
+            activeButton.setForeground(Color.BLACK);
+        }
+        activeButton = button;
+        activeButton.setBackground(COLOR_ACTIVE);
+        activeButton.setForeground(Color.WHITE);
+        cardLayout.show(mainContentPanel, card);
+    }
+
+    private JComponent createMainContent() {
         mainContentPanel = new JPanel();
         cardLayout = new CardLayout();
         mainContentPanel.setLayout(cardLayout);
-        mainContentPanel.setBackground(Color.WHITE);
-        mainContentPanel.setBorder(new LineBorder(Color.BLACK));
+        mainContentPanel.setBorder(new LineBorder(COLOR_BORDER));
 
-        // Create and add section panels
-        mainContentPanel.add(createPatientRegPanel(), "PatientReg");
-        mainContentPanel.add(createMedicalRecordsPanel(), "MedicalRecords");
-        mainContentPanel.add(createBillingHistoryPanel(), "BillingHistory");
-        mainContentPanel.add(createLabTestPanel(), "LabTest");
-        mainContentPanel.add(createAdmissionPanel(), "Admission");
-        mainContentPanel.add(createSummaryPanel(), "Summary");
-
-        add(mainContentPanel, BorderLayout.CENTER);
-
-        // DEFAULT ACTIVE PANEL
-        setActiveButton(summaryButton);
-        cardLayout.show(mainContentPanel, "Summary");
+        mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
+        mainContentPanel.add(buildPatientRegPanel(), "PATIENT_REG");
+        mainContentPanel.add(buildMedicalPanel(), "MEDICAL");
+        mainContentPanel.add(buildBillingPanel(), "BILLING");
+        mainContentPanel.add(buildLabPanel(), "LAB");
+        mainContentPanel.add(buildAdmissionPanel(), "ADMISSION");
+        return mainContentPanel;
     }
 
-    // Extracted method for creating Patient Registration panel
-    private JPanel createPatientRegPanel() {
-        JPanel patientRegistrationpanel = new JPanel(new BorderLayout());
-        patientRegistrationpanel.setBackground(Color.WHITE);
-        JLabel label = new JLabel("Patient Registration & Records", JLabel.CENTER);
-        label.setFont(new Font("Tahoma", Font.BOLD, 16));
-        patientRegistrationpanel.add(label, BorderLayout.CENTER);
-        return patientRegistrationpanel;
+    // SUMMARY ---------------------------------------------------------
+    private JPanel buildSummaryPanel() {
+        JPanel root = new JPanel(new BorderLayout(12, 12));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
+        root.add(sectionHeader("Operational Summary"), BorderLayout.NORTH);
+
+        JPanel statsGrid = new JPanel(new GridLayout(1, 3, 12, 12));
+        statsGrid.setOpaque(false);
+        lblTotalPatients = createStatValueLabel("0");
+        lblPendingBills = createStatValueLabel("0");
+        lblLabPending = createStatValueLabel("0");
+        statsGrid.add(wrapStat("Registered Patients", lblTotalPatients));
+        statsGrid.add(wrapStat("Pending Bills", lblPendingBills));
+        statsGrid.add(wrapStat("Pending Lab Tests", lblLabPending));
+        root.add(statsGrid, BorderLayout.CENTER);
+
+        JTextArea info = new JTextArea("Welcome staff! Navigate using the left menu to manage patients, records, billing, labs, and admissions.");
+        info.setEditable(false); info.setLineWrap(true); info.setWrapStyleWord(true); info.setFont(FONT_NORMAL);
+        info.setBorder(new EmptyBorder(8, 12, 8, 12));
+        root.add(new JScrollPane(info), BorderLayout.SOUTH);
+        return root;
     }
 
-    // Similar for other panels...
-    private JPanel createMedicalRecordsPanel() {
-        JPanel medicalRecordPanel = new JPanel(new BorderLayout());
-        medicalRecordPanel.setBackground(Color.WHITE);
-        JLabel label = new JLabel("Medical & Treatment Records", JLabel.CENTER);
-        label.setFont(new Font("Tahoma", Font.BOLD, 16));
-        medicalRecordPanel.add(label, BorderLayout.CENTER);
-        return medicalRecordPanel;
+    private JLabel createStatValueLabel(String value) {
+        JLabel l = new JLabel(value, SwingConstants.CENTER);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        l.setForeground(COLOR_PRIMARY);
+        return l;
+    }
+    private JPanel wrapStat(String title, JLabel value) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(Color.WHITE);
+        p.setBorder(new LineBorder(COLOR_BORDER));
+        JLabel t = new JLabel(title, SwingConstants.CENTER);
+        t.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        t.setForeground(COLOR_PRIMARY.darker());
+        t.setBorder(new EmptyBorder(6, 6, 0, 6));
+        p.add(t, BorderLayout.NORTH);
+        p.add(value, BorderLayout.CENTER);
+        return p;
     }
 
-    private JPanel createBillingHistoryPanel() {
-        JPanel billHistoryPanel = new JPanel(new BorderLayout());
-        billHistoryPanel.setBackground(Color.WHITE);
-        
-        // Improved JTable with a model and sample data
-        DefaultTableModel model = new DefaultTableModel();
-        model.addColumn("Date");
-        model.addColumn("Patient");
-        model.addColumn("Amount");
-        model.addColumn("Description");
-        model.addRow(new Object[]{"2023-10-01", "John Doe", "$100", "Consultation"});
-        model.addRow(new Object[]{"2023-10-02", "Jane Smith", "$200", "Lab Test"});
-        
-        JTable table = new JTable(model);
-        table.setEnabled(false);  // Make non-editable for display
-        billHistoryPanel.add(new JScrollPane(table), BorderLayout.CENTER);
-        return billHistoryPanel;
+    // PATIENT REGISTRATION --------------------------------------------
+    private JPanel buildPatientRegPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+        root.add(sectionHeader("Patient Registration & Records"), BorderLayout.NORTH);
+
+        String[] cols = {"ID", "Name", "Age", "Gender", "Status"};
+        Object[][] data = {{1, "John Doe", 45, "M", "Active"}, {2, "Jane Smith", 29, "F", "Inactive"}};
+        patientRegTable = new JTable(new DefaultTableModel(data, cols));
+        root.add(new JScrollPane(patientRegTable), BorderLayout.CENTER);
+
+        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
+        styleToolbarButton(toolbar, "Add", this::openAddPatientDialog);
+        styleToolbarButton(toolbar, "View", this::openViewPatientDialog);
+        styleToolbarButton(toolbar, "Deactivate", this::openDeactivatePatientDialog);
+        root.add(toolbar, BorderLayout.SOUTH);
+        return root;
     }
 
-    private JPanel createLabTestPanel() {
-        JPanel laboratoryManagementPanel = new JPanel(new BorderLayout());
-        laboratoryManagementPanel.setBackground(Color.WHITE);
-        JLabel label = new JLabel("Laboratory & Test Management", JLabel.CENTER);
-        label.setFont(new Font("Tahoma", Font.BOLD, 16));
-        laboratoryManagementPanel.add(label, BorderLayout.CENTER);
-        return laboratoryManagementPanel;
+    // MEDICAL RECORDS -------------------------------------------------
+    private JPanel buildMedicalPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+        root.add(sectionHeader("Medical & Treatment Records"), BorderLayout.NORTH);
+
+        String[] cols = {"Record ID", "Patient", "Type", "Notes"};
+        Object[][] data = {{101, "John Doe", "Consultation", "Blood pressure stable"}, {102, "Jane Smith", "Follow-up", "Recommend lab test"}};
+        medicalRecordTable = new JTable(new DefaultTableModel(data, cols));
+        root.add(new JScrollPane(medicalRecordTable), BorderLayout.CENTER);
+
+        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
+        styleToolbarButton(toolbar, "Add Record", this::openAddMedicalRecordDialog);
+        styleToolbarButton(toolbar, "View", this::openViewMedicalRecordDialog);
+        styleToolbarButton(toolbar, "Remove", this::openDeleteMedicalRecordDialog);
+        root.add(toolbar, BorderLayout.SOUTH);
+        return root;
     }
 
-    private JPanel createAdmissionPanel() {
-        JPanel admissionDischargePanel = new JPanel(new BorderLayout());
-        admissionDischargePanel.setBackground(Color.WHITE);
-        JLabel label = new JLabel("Admission & Discharge Management", JLabel.CENTER);
-        label.setFont(new Font("Tahoma", Font.BOLD, 16));
-        admissionDischargePanel.add(label, BorderLayout.CENTER);
-        return admissionDischargePanel;
+    // BILLING ---------------------------------------------------------
+    private JPanel buildBillingPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+        root.add(sectionHeader("Billing & Payment History"), BorderLayout.NORTH);
+
+        String[] cols = {"Date", "Patient", "Amount", "Description", "Status"};
+        Object[][] data = {{"2025-01-10", "John Doe", "$120", "Consultation", "Unpaid"}, {"2025-01-11", "Jane Smith", "$200", "Lab Test", "Paid"}};
+        billingTable = new JTable(new DefaultTableModel(data, cols));
+        root.add(new JScrollPane(billingTable), BorderLayout.CENTER);
+
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT)); footer.setOpaque(false);
+        JButton exportBtn = new JButton("Export"); styleSecondaryButton(exportBtn); exportBtn.addActionListener(e -> openExportBillingDialog());
+        JButton markPaidBtn = new JButton("Mark Paid"); styleSecondaryButton(markPaidBtn); markPaidBtn.addActionListener(e -> openMarkPaidDialog());
+        footer.add(exportBtn); footer.add(markPaidBtn);
+        root.add(footer, BorderLayout.SOUTH);
+        return root;
     }
 
-    private JPanel createSummaryPanel() {
-        JPanel summaryPanel = new JPanel(new BorderLayout());
-        summaryPanel.setBackground(Color.WHITE);
-        JLabel label = new JLabel("Dashboard & Summary", JLabel.CENTER);
-        label.setFont(new Font("Tahoma", Font.BOLD, 16));
-        summaryPanel.add(label, BorderLayout.NORTH);
-        
-        JTextArea textArea = new JTextArea("Summary content here.\n- Total Patients: 150\n- Pending Bills: 5");
-        textArea.setEditable(false);
-        summaryPanel.add(new JScrollPane(textArea), BorderLayout.CENTER);
-        return summaryPanel;
+    // LAB -------------------------------------------------------------
+    private JPanel buildLabPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+        root.add(sectionHeader("Laboratory & Test Management"), BorderLayout.NORTH);
+
+        String[] cols = {"Test ID", "Patient", "Test", "Status"};
+        Object[][] data = {{501, "John Doe", "CBC", "Pending"}, {502, "Jane Smith", "X-Ray", "Completed"}};
+        labTable = new JTable(new DefaultTableModel(data, cols));
+        root.add(new JScrollPane(labTable), BorderLayout.CENTER);
+
+        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
+        styleToolbarButton(toolbar, "Add Test", this::openAddLabTestDialog);
+        styleToolbarButton(toolbar, "Update", this::openUpdateLabTestDialog);
+        styleToolbarButton(toolbar, "Complete", this::openCompleteLabTestDialog);
+        root.add(toolbar, BorderLayout.SOUTH);
+        return root;
     }
 
-    // BUTTON EFFECTS METHOD (unchanged, but could add tooltips)
-    private void addHoverAndClick(JButton button, String panelName) {
-        button.setPreferredSize(new Dimension(180, 60));
-        button.setFont(new Font("Tahoma", Font.BOLD, 12));
-        button.setFocusPainted(false);
-        button.setBorderPainted(false);
-        button.setContentAreaFilled(true);
-        button.setBackground(Color.WHITE);
-        button.setOpaque(true);
-        button.setBorder(new EtchedBorder(EtchedBorder.RAISED));
+    // ADMISSION -------------------------------------------------------
+    private JPanel buildAdmissionPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+        root.add(sectionHeader("Admission & Discharge Management"), BorderLayout.NORTH);
 
-        // Hover effect
-        button.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseEntered(java.awt.event.MouseEvent evt) {
-                if (button != activeButton) button.setBackground(Color.LIGHT_GRAY);
-            }
-            public void mouseExited(java.awt.event.MouseEvent evt) {
-                if (button != activeButton) button.setBackground(Color.WHITE);
-            }
-        });
+        String[] cols = {"Admission ID", "Patient", "Room", "Status"};
+        Object[][] data = {{801, "John Doe", "101A", "Admitted"}, {802, "Jane Smith", "102B", "Discharged"}};
+        admissionTable = new JTable(new DefaultTableModel(data, cols));
+        root.add(new JScrollPane(admissionTable), BorderLayout.CENTER);
 
-        // Click => change panel
-        button.addActionListener(e -> {
-            setActiveButton(button);
-            cardLayout.show(mainContentPanel, panelName);
-        });
+        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
+        styleToolbarButton(toolbar, "Admit", this::openAdmitPatientDialog);
+        styleToolbarButton(toolbar, "Discharge", this::openDischargePatientDialog);
+        styleToolbarButton(toolbar, "Transfer", this::openTransferPatientDialog);
+        root.add(toolbar, BorderLayout.SOUTH);
+        return root;
     }
 
-    // SWITCH ACTIVE BUTTON COLOR
-    private void setActiveButton(JButton newButton) {
-        if (activeButton != null) {
-            activeButton.setBackground(Color.WHITE);
+    // HELPERS ---------------------------------------------------------
+    private JLabel sectionHeader(String text) {
+        JLabel l = new JLabel(text, SwingConstants.LEFT);
+        l.setFont(FONT_SECTION);
+        l.setForeground(COLOR_PRIMARY.darker());
+        l.setBorder(new EmptyBorder(0, 0, 8, 0));
+        return l;
+    }
+    private void styleToolbarButton(JToolBar bar, String text, Runnable action) {
+        JButton b = new JButton(text); b.setFont(FONT_NORMAL); b.addActionListener(e -> action.run()); bar.add(b);
+    }
+    private void styleSecondaryButton(JButton b) {
+        b.setFont(FONT_NORMAL); b.setBackground(Color.WHITE); b.setBorder(new LineBorder(COLOR_BORDER)); b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addMouseListener(new MouseAdapter() { @Override public void mouseEntered(MouseEvent e){ b.setBackground(COLOR_PRIMARY_HOVER);} @Override public void mouseExited(MouseEvent e){ b.setBackground(Color.WHITE);} });
+    }
+
+    // DIALOG METHODS (Patient Registration)
+    private void openAddPatientDialog() {
+        JPanel panel = new JPanel(new GridLayout(5,2,8,8)); panel.setBorder(new EmptyBorder(10,10,10,10));
+        JTextField name = field(panel, "Name:"); JTextField age = field(panel, "Age:"); JTextField gender = field(panel, "Gender:"); JTextField status = field(panel, "Status:");
+        field(panel, "Notes:"); // placeholder unused
+        int r = showDialog(panel, "Add Patient");
+        if (r == JOptionPane.OK_OPTION) {
+            if (!name.getText().isEmpty()) {
+                DefaultTableModel m = (DefaultTableModel) patientRegTable.getModel();
+                m.addRow(new Object[]{m.getRowCount()+1, name.getText(), parseIntSafe(age.getText()), gender.getText(), status.getText()});
+            } else warn("Name required");
         }
-        activeButton = newButton;
-        activeButton.setBackground(Color.CYAN);
     }
+    private void openViewPatientDialog() {
+        int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}
+        DefaultTableModel m=(DefaultTableModel)patientRegTable.getModel();
+        info(String.format("ID: %s\nName: %s\nAge: %s\nGender: %s\nStatus: %s",m.getValueAt(row,0),m.getValueAt(row,1),m.getValueAt(row,2),m.getValueAt(row,3),m.getValueAt(row,4)));
+    }
+    private void openDeactivatePatientDialog() {
+        int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}
+        int c = confirm("Deactivate this patient?"); if (c==JOptionPane.YES_OPTION){ ((DefaultTableModel)patientRegTable.getModel()).setValueAt("Inactive", row, 4); info("Patient deactivated."); }
+    }
+
+    // Medical Records dialogs
+    private void openAddMedicalRecordDialog() {
+        JPanel p=new JPanel(new GridLayout(4,2,8,8)); p.setBorder(new EmptyBorder(10,10,10,10));
+        JTextField patient=field(p,"Patient:"); JTextField type=field(p,"Type:"); JTextField notes=field(p,"Notes:"); field(p,"Extra:");
+        if (showDialog(p,"Add Medical Record")==JOptionPane.OK_OPTION){ if(!patient.getText().isEmpty()){ DefaultTableModel m=(DefaultTableModel)medicalRecordTable.getModel(); m.addRow(new Object[]{m.getRowCount()+101, patient.getText(), type.getText(), notes.getText()}); info("Record added."); } else warn("Patient required"); }
+    }
+    private void openViewMedicalRecordDialog() {
+        int r=medicalRecordTable.getSelectedRow(); if(r==-1){warn("Select a record first"); return;} DefaultTableModel m=(DefaultTableModel)medicalRecordTable.getModel();
+        info(String.format("Record: %s\nPatient: %s\nType: %s\nNotes: %s",m.getValueAt(r,0),m.getValueAt(r,1),m.getValueAt(r,2),m.getValueAt(r,3)));
+    }
+    private void openDeleteMedicalRecordDialog() {
+        int r=medicalRecordTable.getSelectedRow(); if(r==-1){warn("Select a record first"); return;} if(confirm("Delete this record?")==JOptionPane.YES_OPTION){ ((DefaultTableModel)medicalRecordTable.getModel()).removeRow(r); info("Record deleted."); }
+    }
+
+    // Billing dialogs
+    private void openExportBillingDialog() { info("Export billing (placeholder)"); }
+    private void openMarkPaidDialog() {
+        int r=billingTable.getSelectedRow(); if(r==-1){warn("Select a bill first"); return;} ((DefaultTableModel)billingTable.getModel()).setValueAt("Paid", r, 4); info("Marked as paid.");
+    }
+
+    // Lab dialogs
+    private void openAddLabTestDialog() { JPanel p=new JPanel(new GridLayout(3,2,8,8)); p.setBorder(new EmptyBorder(10,10,10,10)); JTextField patient=field(p,"Patient:"); JTextField test=field(p,"Test:"); field(p,"Notes:"); if(showDialog(p,"Add Lab Test")==JOptionPane.OK_OPTION){ if(!patient.getText().isEmpty()){ DefaultTableModel m=(DefaultTableModel)labTable.getModel(); m.addRow(new Object[]{m.getRowCount()+501, patient.getText(), test.getText(), "Pending"}); info("Lab test added."); } else warn("Patient required"); } }
+    private void openUpdateLabTestDialog() { int r=labTable.getSelectedRow(); if(r==-1){warn("Select test first"); return;} ((DefaultTableModel)labTable.getModel()).setValueAt("In Progress", r, 3); info("Status updated."); }
+    private void openCompleteLabTestDialog() { int r=labTable.getSelectedRow(); if(r==-1){warn("Select test first"); return;} ((DefaultTableModel)labTable.getModel()).setValueAt("Completed", r, 3); info("Test completed."); }
+
+    // Admission dialogs
+    private void openAdmitPatientDialog() { JPanel p=new JPanel(new GridLayout(3,2,8,8)); p.setBorder(new EmptyBorder(10,10,10,10)); JTextField patient=field(p,"Patient:"); JTextField room=field(p,"Room:"); field(p,"Notes:"); if(showDialog(p,"Admit Patient")==JOptionPane.OK_OPTION){ if(!patient.getText().isEmpty()){ DefaultTableModel m=(DefaultTableModel)admissionTable.getModel(); m.addRow(new Object[]{m.getRowCount()+801, patient.getText(), room.getText(), "Admitted"}); info("Patient admitted."); } else warn("Patient required"); } }
+    private void openDischargePatientDialog() { int r=admissionTable.getSelectedRow(); if(r==-1){warn("Select admission first"); return;} ((DefaultTableModel)admissionTable.getModel()).setValueAt("Discharged", r, 3); info("Patient discharged."); }
+    private void openTransferPatientDialog() { int r=admissionTable.getSelectedRow(); if(r==-1){warn("Select admission first"); return;} ((DefaultTableModel)admissionTable.getModel()).setValueAt("Transferred", r, 3); info("Patient transferred."); }
+
+    // SMALL UTILS -----------------------------------------------------
+    private JTextField field(JPanel p, String label){ p.add(new JLabel(label)); JTextField f=new JTextField(); p.add(f); return f; }
+    private int showDialog(JPanel panel, String title){ return JOptionPane.showConfirmDialog(this,panel,title,JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE); }
+    private void info(String msg){ JOptionPane.showMessageDialog(this,msg,"Info",JOptionPane.INFORMATION_MESSAGE); }
+    private void warn(String msg){ JOptionPane.showMessageDialog(this,msg,"Warning",JOptionPane.WARNING_MESSAGE); }
+    private int confirm(String msg){ return JOptionPane.showConfirmDialog(this,msg,"Confirm",JOptionPane.YES_NO_OPTION); }
+    private int parseIntSafe(String s){ try{ return Integer.parseInt(s.trim()); }catch(Exception e){ return 0; } }
+
+    // PUBLIC UPDATE API -----------------------------------------------
+    public void updateSummary(int patients, int pendingBills, int labPending){
+        if(lblTotalPatients!=null) lblTotalPatients.setText(String.valueOf(patients));
+        if(lblPendingBills!=null) lblPendingBills.setText(String.valueOf(pendingBills));
+        if(lblLabPending!=null) lblLabPending.setText(String.valueOf(labPending));
+    }
+    public JTable getPatientRegTable(){ return patientRegTable; }
+    public JTable getMedicalRecordTable(){ return medicalRecordTable; }
+    public JTable getBillingTable(){ return billingTable; }
+    public JTable getLabTable(){ return labTable; }
+    public JTable getAdmissionTable(){ return admissionTable; }
 }
