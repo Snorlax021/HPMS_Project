@@ -12,6 +12,10 @@ public class DashboardUI extends JFrame {
 
     private static final long serialVersionUID = 1L;
     private JPanel contentPane;
+    private JComponent dashboardPanel;
+    private JTextField globalSearchField;
+    private JButton clearSearchButton;
+    private JComboBox<String> roleSelector; // new role switcher
 
     public static void main(String[] args) {
         String role = "STAFF:REGISTRATION"; // example launch
@@ -78,10 +82,36 @@ public class DashboardUI extends JFrame {
         });
         rightPanel.add(logoutButton);
 
+        // ROLE SWITCHER -------------------------------------------------
+        roleSelector = new JComboBox<>(new String[]{"ADMIN","DOCTOR","USER","STAFF","STAFF:REGISTRATION","STAFF:BILLING","STAFF:LAB"});
+        roleSelector.setSelectedItem(role != null ? role.toUpperCase() : "USER");
+        roleSelector.setToolTipText("Switch current role dashboard");
+        roleSelector.addActionListener(e -> setRole((String) roleSelector.getSelectedItem()));
+        rightPanel.add(new JLabel("Role:"));
+        rightPanel.add(roleSelector);
+
+        // GLOBAL SEARCH COMPONENTS -------------------------------------
+        globalSearchField = new JTextField(18);
+        globalSearchField.setToolTipText("Global search across visible dashboard tables");
+        globalSearchField.addActionListener(e -> performGlobalSearch());
+        clearSearchButton = new JButton("Clear");
+        clearSearchButton.setToolTipText("Clear global search filter");
+        clearSearchButton.addActionListener(e -> {
+            globalSearchField.setText("");
+            if (dashboardPanel instanceof GlobalSearchable gs) {
+                gs.clearGlobalSearch(); gs.clearGlobalFilter();
+            }
+        });
+        rightPanel.add(new JLabel("Search:"));
+        rightPanel.add(globalSearchField);
+        rightPanel.add(clearSearchButton);
+
         panel.add(rightPanel, BorderLayout.EAST);
 
         // MAIN CENTER PANEL - Role-based dashboard
         JPanel dashboardPanel = createDashboardPanel(role);
+        this.dashboardPanel = dashboardPanel;
+        updateSearchAvailability();
         contentPane.add(dashboardPanel, BorderLayout.CENTER);
     }
 
@@ -110,5 +140,37 @@ public class DashboardUI extends JFrame {
                 JOptionPane.showMessageDialog(this, "Unknown role: " + role + ". Defaulting to basic view.", "Warning", JOptionPane.WARNING_MESSAGE);
                 return new JPanel();  // Default panel
         }
+    }
+
+    private void performGlobalSearch() {
+        String q = globalSearchField.getText();
+        if (dashboardPanel instanceof GlobalSearchable gs) {
+            gs.applyGlobalSearch(q);
+        }
+    }
+    private void updateSearchAvailability() {
+        boolean enabled = dashboardPanel instanceof GlobalSearchable;
+        globalSearchField.setEnabled(enabled);
+        clearSearchButton.setEnabled(enabled);
+        if (!enabled) {
+            globalSearchField.setText("Not supported for this view");
+        }
+    }
+
+    // NEW: change role at runtime --------------------------------------
+    public void setRole(String role) {
+        if (role == null) return;
+        // Remove old panel
+        if (dashboardPanel != null) {
+            getContentPane().remove(dashboardPanel);
+        }
+        // Create new panel
+        JPanel newPanel = createDashboardPanel(role);
+        this.dashboardPanel = newPanel;
+        // Add and refresh
+        getContentPane().add(newPanel, BorderLayout.CENTER);
+        updateSearchAvailability();
+        revalidate();
+        repaint();
     }
 }

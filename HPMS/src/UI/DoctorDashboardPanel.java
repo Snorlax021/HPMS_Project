@@ -4,11 +4,19 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
+import javax.swing.RowFilter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ArrayList;
 
-public class DoctorDashboardPanel extends JPanel {
+public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
 
     // THEME CONSTANTS (match AdminDashboardPanel)
@@ -40,6 +48,9 @@ public class DoctorDashboardPanel extends JPanel {
     // Tables
     private JTable patientsTable;
     private JTable reportsTable;
+    // Global search/filter state
+    private String globalSearchQuery;
+    private final Map<String, Map<String,String>> columnFilters = new HashMap<>();
 
     public DoctorDashboardPanel() {
         setBackground(COLOR_BG);
@@ -67,6 +78,24 @@ public class DoctorDashboardPanel extends JPanel {
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
         right.setOpaque(false);
+
+        // Search components
+        JTextField searchField = new JTextField(15);
+        searchField.setFont(FONT_NORMAL);
+        JButton btnSearch = new JButton("Search");
+        styleSecondaryButton(btnSearch);
+        btnSearch.addActionListener(e -> applyGlobalSearch(searchField.getText()));
+        JButton btnClear = new JButton("Clear");
+        styleSecondaryButton(btnClear);
+        btnClear.addActionListener(e -> {
+            searchField.setText("");
+            clearGlobalSearch();
+        });
+
+        right.add(searchField);
+        right.add(btnSearch);
+        right.add(btnClear);
+
         JButton btnRefresh = new JButton("Refresh");
         styleSecondaryButton(btnRefresh);
         btnRefresh.addActionListener(e -> JOptionPane.showMessageDialog(this, "Data refreshed (placeholder)", "Info", JOptionPane.INFORMATION_MESSAGE));
@@ -344,5 +373,69 @@ public class DoctorDashboardPanel extends JPanel {
 
     private int parseIntSafe(String s) {
         try { return Integer.parseInt(s.trim()); } catch (Exception e) { return 0; }
+    }
+
+    @Override
+    public Map<String, JTable> getSearchableTables() {
+        Map<String, JTable> map = new LinkedHashMap<>();
+        if (patientsTable != null) map.put("patients", patientsTable);
+        if (reportsTable != null) map.put("reports", reportsTable);
+        return map;
+    }
+
+    @Override
+    public void applyGlobalSearch(String query) {
+        globalSearchQuery = (query == null || query.isBlank()) ? null : query.trim();
+        refreshAllFilters();
+    }
+
+    @Override
+    public void clearGlobalSearch() { globalSearchQuery = null; refreshAllFilters(); }
+
+    @Override
+    public void applyGlobalFilter(String tableName, String columnName, String value) {
+        if (tableName == null || columnName == null) return;
+        Map<String,String> map = columnFilters.computeIfAbsent(tableName, k -> new HashMap<>());
+        if (value == null || value.isBlank()) { map.remove(columnName); if (map.isEmpty()) columnFilters.remove(tableName); }
+        else map.put(columnName, value.trim());
+        JTable t = getSearchableTables().get(tableName);
+        if (t != null) applyFiltersToTable(tableName, t);
+    }
+
+    @Override
+    public void clearGlobalFilter() { columnFilters.clear(); refreshAllFilters(); }
+
+    private void refreshAllFilters() { getSearchableTables().forEach(this::applyFiltersToTable); }
+
+    @SuppressWarnings("unchecked")
+    private void applyFiltersToTable(String logicalName, JTable table) {
+        if (table.getRowSorter() == null) table.setRowSorter(new TableRowSorter<>(table.getModel()));
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) table.getRowSorter();
+        List<RowFilter<TableModel,Object>> filters = new ArrayList<>();
+        if (globalSearchQuery != null) {
+            final String q = globalSearchQuery.toLowerCase();
+            filters.add(new RowFilter<TableModel,Object>() {
+                @Override public boolean include(Entry<? extends TableModel, ? extends Object> entry) {
+                    for (int i=0;i<entry.getValueCount();i++){ Object v=entry.getValue(i); if (v!=null && v.toString().toLowerCase().contains(q)) return true; }
+                    return false;
+                }
+            });
+        }
+        Map<String,String> colMap = columnFilters.get(logicalName);
+        if (colMap != null) {
+            for (Map.Entry<String,String> e : colMap.entrySet()) {
+                String colName = e.getKey(); String val = e.getValue(); if (val==null||val.isBlank()) continue;
+                int colIndex; try { colIndex = table.getColumnModel().getColumnIndex(colName); } catch (IllegalArgumentException ex){ continue; }
+                final String qv = val.toLowerCase();
+                filters.add(new RowFilter<TableModel,Object>() {
+                    @Override public boolean include(Entry<? extends TableModel, ? extends Object> entry) {
+                        Object v = entry.getValue(colIndex); return v!=null && v.toString().toLowerCase().contains(qv);
+                    }
+                });
+            }
+        }
+        if (filters.isEmpty()) sorter.setRowFilter(null);
+        else if (filters.size()==1) sorter.setRowFilter(filters.get(0));
+        else sorter.setRowFilter(RowFilter.andFilter(filters));
     }
 }

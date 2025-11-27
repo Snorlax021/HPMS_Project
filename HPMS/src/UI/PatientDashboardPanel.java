@@ -3,12 +3,22 @@ package UI;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.event.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
+import javax.swing.RowFilter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.regex.Pattern;
 
-public class PatientDashboardPanel extends JPanel {
+public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
     // THEME (aligned with AdminDashboardPanel for consistency)
     private static final Color COLOR_BG = Color.WHITE;
@@ -32,18 +42,25 @@ public class PatientDashboardPanel extends JPanel {
     private JButton btnBills;
     private JButton btnLab;
     private JButton btnGuide;
+    private JButton btnServices; // New button for Hospital Services
     private JButton activeButton;
 
     // Tables / components for future data binding
     private JTable appointmentsTable;
     private JTable billsTable;
     private JTable labTable;
-    private JTextArea profileArea;
+    private JTable servicesTable;
+    // Global search/filter state
+    private String globalSearchQuery;
+    private final Map<String, Map<String,String>> columnFilters = new HashMap<>();
 
     // Dashboard dynamic labels
     private JLabel lblUpcomingAppts;
     private JLabel lblPendingBills;
     private JLabel lblLabResults;
+
+    // Missing profileArea field re-added
+    private JTextArea profileArea;
 
     public PatientDashboardPanel() {
         setBackground(COLOR_BG);
@@ -93,6 +110,7 @@ public class PatientDashboardPanel extends JPanel {
         btnBills = createNavButton("Billing Info", "BILLS");
         btnLab = createNavButton("Lab Results", "LAB");
         btnGuide = createNavButton("User Guide", "GUIDE");
+        btnServices = createNavButton("Hospital Services", "SERVICES"); // Initialize new button
 
         sideNavPanel.add(Box.createVerticalStrut(6));
         sideNavPanel.add(btnSummary);
@@ -101,7 +119,8 @@ public class PatientDashboardPanel extends JPanel {
         sideNavPanel.add(btnHistory);
         sideNavPanel.add(btnBills);
         sideNavPanel.add(btnLab);
-        sideNavPanel.add(btnGuide);
+        sideNavPanel.add(btnServices); 
+        sideNavPanel.add(btnGuide); // Add new button to sidebar
         sideNavPanel.add(Box.createVerticalGlue());
         return sideNavPanel;
     }
@@ -148,6 +167,7 @@ public class PatientDashboardPanel extends JPanel {
         mainContentPanel.add(buildBillsPanel(), "BILLS");
         mainContentPanel.add(buildLabPanel(), "LAB");
         mainContentPanel.add(buildGuidePanel(), "GUIDE");
+        mainContentPanel.add(buildServicesPanel(), "SERVICES");
         return mainContentPanel;
     }
 
@@ -221,11 +241,35 @@ public class PatientDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
-        root.add(sectionHeader("Appointments"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Appointments", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Appointments:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Date", "Time", "Doctor", "Description"};
         Object[][] data = {{"2025-01-15", "09:00", "Dr. Smith", "Follow-up"}, {"2025-01-20", "14:30", "Dr. Adams", "Consultation"}};
         appointmentsTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterAppointmentsTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterAppointmentsTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterAppointmentsTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(appointmentsTable), BorderLayout.CENTER);
 
         JToolBar toolbar = new JToolBar();
@@ -255,10 +299,35 @@ public class PatientDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
-        root.add(sectionHeader("Billing Info"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Billing Info", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Bills:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
+
         String[] cols = {"Date", "Description", "Amount"};
         Object[][] data = {{"2025-01-05", "Consultation", "$50"}, {"2025-01-07", "Lab Test", "$75"}};
         billsTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterBillsTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterBillsTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterBillsTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(billsTable), BorderLayout.CENTER);
         JButton payBtn = new JButton("Pay Selected");
         styleSecondaryButton(payBtn);
@@ -274,11 +343,74 @@ public class PatientDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
-        root.add(sectionHeader("Lab Results"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Lab Results", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Lab Results:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
+
         String[] cols = {"Date", "Test", "Status"};
         Object[][] data = {{"2025-01-02", "CBC", "Completed"}, {"2025-01-08", "X-Ray", "Pending"}};
         labTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterLabTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterLabTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterLabTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(labTable), BorderLayout.CENTER);
+        return root;
+    }
+
+    // SERVICES PANEL ---------------------------------------------------
+    private JPanel buildServicesPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Hospital Services", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Services:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
+
+        String[] cols = {"Service", "Doctor", "Price"};
+        Object[][] data = {{"Consultation", "Dr. Smith", "$100"}, {"Surgery", "Dr. Adams", "$500"}, {"Lab Test", "Dr. Johnson", "$50"}, {"X-Ray", "Dr. Lee", "$75"}};
+        servicesTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterServicesTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterServicesTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterServicesTable(searchField.getText()); }
+        });
+
+        root.add(new JScrollPane(servicesTable), BorderLayout.CENTER);
         return root;
     }
 
@@ -288,7 +420,7 @@ public class PatientDashboardPanel extends JPanel {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
         root.add(sectionHeader("User Guide"), BorderLayout.NORTH);
-        JTextArea area = new JTextArea("FAQs and instructions:\n\n1. Profile: view or edit your personal info.\n2. Appointments: manage schedule.\n3. History: view medical records.\n4. Billing: see outstanding payments.\n5. Lab: view test results.\n6. Summary: overview of activity.");
+        JTextArea area = new JTextArea("FAQs and instructions:\n\n1. Profile: view or edit your personal info.\n2. Appointments: manage schedule.\n3. History: view medical records.\n4. Billing: see outstanding payments.\n5. Lab: view test results.\n6. Hospital Services: view available services, doctors, and prices.\n7. Summary: overview of activity.");
         area.setEditable(false);
         area.setFont(FONT_NORMAL);
         root.add(new JScrollPane(area), BorderLayout.CENTER);
@@ -371,4 +503,91 @@ public class PatientDashboardPanel extends JPanel {
     public JTable getAppointmentsTable() { return appointmentsTable; }
     public JTable getBillsTable() { return billsTable; }
     public JTable getLabTable() { return labTable; }
+
+    @Override
+    public Map<String, JTable> getSearchableTables() {
+        Map<String, JTable> map = new LinkedHashMap<>();
+        if (appointmentsTable != null) map.put("appointments", appointmentsTable);
+        if (billsTable != null) map.put("bills", billsTable);
+        if (labTable != null) map.put("lab", labTable);
+        if (servicesTable != null) map.put("services", servicesTable);
+        return map;
+    }
+    @Override
+    public void applyGlobalSearch(String query) { globalSearchQuery = (query==null||query.isBlank())?null:query.trim(); refreshAllFilters(); }
+    @Override
+    public void clearGlobalSearch() { globalSearchQuery = null; refreshAllFilters(); }
+    @Override
+    public void applyGlobalFilter(String tableName, String columnName, String value) {
+        if (tableName==null||columnName==null) return;
+        Map<String,String> map = columnFilters.computeIfAbsent(tableName,k->new HashMap<>());
+        if (value==null||value.isBlank()) { map.remove(columnName); if(map.isEmpty()) columnFilters.remove(tableName);} else map.put(columnName,value.trim());
+        JTable t = getSearchableTables().get(tableName); if (t!=null) applyFiltersToTable(tableName,t);
+    }
+    @Override
+    public void clearGlobalFilter() { columnFilters.clear(); refreshAllFilters(); }
+    private void refreshAllFilters(){ getSearchableTables().forEach(this::applyFiltersToTable); }
+    @SuppressWarnings("unchecked")
+    private void applyFiltersToTable(String logicalName, JTable table){
+        if (table.getRowSorter()==null) table.setRowSorter(new TableRowSorter<>(table.getModel()));
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) table.getRowSorter();
+        List<RowFilter<TableModel,Object>> filters = new ArrayList<>();
+        if (globalSearchQuery!=null){ final String q=globalSearchQuery.toLowerCase(); filters.add(new RowFilter<TableModel,Object>(){ @Override public boolean include(Entry<? extends TableModel, ? extends Object> entry){ for(int i=0;i<entry.getValueCount();i++){ Object v=entry.getValue(i); if(v!=null && v.toString().toLowerCase().contains(q)) return true;} return false; }}); }
+        Map<String,String> colMap = columnFilters.get(logicalName);
+        if (colMap!=null){ for(Map.Entry<String,String> e: colMap.entrySet()){ String colName=e.getKey(); String val=e.getValue(); if(val==null||val.isBlank()) continue; int colIndex; try{ colIndex=table.getColumnModel().getColumnIndex(colName);} catch(IllegalArgumentException ex){ continue;} final String qv=val.toLowerCase(); filters.add(new RowFilter<TableModel,Object>(){ @Override public boolean include(Entry<? extends TableModel, ? extends Object> entry){ Object v=entry.getValue(colIndex); return v!=null && v.toString().toLowerCase().contains(qv);} }); }}
+        if (filters.isEmpty()) sorter.setRowFilter(null); else if(filters.size()==1) sorter.setRowFilter(filters.get(0)); else sorter.setRowFilter(RowFilter.andFilter(filters));
+    }
+
+    // FILTERING LOGIC FOR APPOINTMENTS TABLE ---------------------------
+    private void filterAppointmentsTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) appointmentsTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(appointmentsTable.getModel());
+            appointmentsTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 2, 3));
+        }
+    }
+    // FILTERING LOGIC FOR BILLS TABLE ---------------------------------
+    private void filterBillsTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) billsTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(billsTable.getModel());
+            billsTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1));
+        }
+    }
+    // FILTERING LOGIC FOR LAB TABLE ---------------------------------
+    private void filterLabTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) labTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(labTable.getModel());
+            labTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2));
+        }
+    }
+    // FILTERING LOGIC FOR SERVICES TABLE ---------------------------------
+    private void filterServicesTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) servicesTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(servicesTable.getModel());
+            servicesTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 0, 1));
+        }
+    }
 }

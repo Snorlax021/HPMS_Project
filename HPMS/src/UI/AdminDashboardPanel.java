@@ -4,11 +4,20 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
+import javax.swing.RowFilter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ArrayList;
+import javax.swing.event.*;
 
-public class AdminDashboardPanel extends JPanel {
+public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
 
     // THEME CONSTANTS
@@ -41,6 +50,9 @@ public class AdminDashboardPanel extends JPanel {
     // Tables (exposed for future data binding)
     private JTable userTable;
     private JTable paymentTable;
+    // Global search/filter state
+    private String globalSearchQuery;
+    private final Map<String, Map<String, String>> columnFilters = new HashMap<>();
 
     public AdminDashboardPanel() {
         setBackground(COLOR_BG);
@@ -87,6 +99,7 @@ public class AdminDashboardPanel extends JPanel {
         sideNavPanel.setBorder(new LineBorder(COLOR_BORDER));
         sideNavPanel.setPreferredSize(new Dimension(190, 0));
 
+    //Dito magaadd ng buttons para sa side bar
         btnDashboard = createNavButton("Dashboard", "DASHBOARD");
         btnUsers = createNavButton("User Management", "USERS");
         btnPayments = createNavButton("Payments", "PAYMENTS");
@@ -207,11 +220,22 @@ public class AdminDashboardPanel extends JPanel {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
         JLabel header = new JLabel("User Management", SwingConstants.LEFT);
         header.setFont(FONT_SECTION);
         header.setForeground(COLOR_PRIMARY.darker());
         header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        root.add(header, BorderLayout.NORTH);
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Users:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
@@ -224,6 +248,14 @@ public class AdminDashboardPanel extends JPanel {
         String[] cols = {"ID", "Name", "Role", "Status"};
         Object[][] data = {{1, "John Doe", "Doctor", "Active"}, {2, "Jane Smith", "Staff", "Active"}, {3, "Robert Admin", "Admin", "Disabled"}};
         userTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterUserTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterUserTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterUserTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(userTable), BorderLayout.CENTER);
         return root;
     }
@@ -257,15 +289,34 @@ public class AdminDashboardPanel extends JPanel {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
         JLabel header = new JLabel("Payment History", SwingConstants.LEFT);
         header.setFont(FONT_SECTION);
         header.setForeground(COLOR_PRIMARY.darker());
         header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        root.add(header, BorderLayout.NORTH);
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Payments:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Date", "Name", "Amount", "Description"};
         Object[][] data = {{"2025-01-10", "Patient A", "$120.00", "Consultation"}, {"2025-01-11", "Patient B", "$450.00", "Procedure"}};
         paymentTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterPaymentTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterPaymentTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterPaymentTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(paymentTable), BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -317,6 +368,90 @@ public class AdminDashboardPanel extends JPanel {
 
     public JTable getUserTable() { return userTable; }
     public JTable getPaymentTable() { return paymentTable; }
+
+    // GLOBAL SEARCH IMPLEMENTATION ------------------------------------
+    @Override
+    public Map<String, JTable> getSearchableTables() {
+        Map<String, JTable> map = new LinkedHashMap<>();
+        if (userTable != null) map.put("users", userTable);
+        if (paymentTable != null) map.put("payments", paymentTable);
+        return map;
+    }
+    @Override
+    public void applyGlobalSearch(String query) {
+        globalSearchQuery = (query == null || query.isBlank()) ? null : query.trim();
+        refreshAllFilters();
+    }
+    @Override
+    public void clearGlobalSearch() { globalSearchQuery = null; refreshAllFilters(); }
+    @Override
+    public void applyGlobalFilter(String tableName, String columnName, String value) {
+        if (tableName == null || columnName == null) return;
+        Map<String, String> map = columnFilters.computeIfAbsent(tableName, k -> new HashMap<>());
+        if (value == null || value.isBlank()) {
+            map.remove(columnName);
+            if (map.isEmpty()) columnFilters.remove(tableName);
+        } else {
+            map.put(columnName, value.trim());
+        }
+        JTable table = getSearchableTables().get(tableName);
+        if (table != null) applyFiltersToTable(tableName, table);
+    }
+    @Override
+    public void clearGlobalFilter() {
+        columnFilters.clear();
+        refreshAllFilters();
+    }
+    private void refreshAllFilters() {
+        getSearchableTables().forEach(this::applyFiltersToTable);
+    }
+    @SuppressWarnings("unchecked")
+    private void applyFiltersToTable(String logicalName, JTable table) {
+        if (table.getRowSorter() == null) {
+            table.setRowSorter(new TableRowSorter<>(table.getModel()));
+        }
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) table.getRowSorter();
+        List<RowFilter<TableModel, Object>> filters = new ArrayList<>();
+        if (globalSearchQuery != null) {
+            final String q = globalSearchQuery.toLowerCase();
+            filters.add(new RowFilter<TableModel, Object>() {
+                @Override
+                public boolean include(Entry<? extends TableModel, ? extends Object> entry) {
+                    int cols = entry.getValueCount();
+                    for (int i = 0; i < cols; i++) {
+                        Object v = entry.getValue(i);
+                        if (v != null && v.toString().toLowerCase().contains(q)) return true;
+                    }
+                    return false;
+                }
+            });
+        }
+        Map<String, String> colMap = columnFilters.get(logicalName);
+        if (colMap != null) {
+            for (Map.Entry<String, String> e : colMap.entrySet()) {
+                String colName = e.getKey();
+                String val = e.getValue();
+                if (val == null || val.isBlank()) continue;
+                int colIndex;
+                try { colIndex = table.getColumnModel().getColumnIndex(colName); } catch (IllegalArgumentException ex) { continue; }
+                final String qv = val.toLowerCase();
+                filters.add(new RowFilter<TableModel, Object>() {
+                    @Override
+                    public boolean include(Entry<? extends TableModel, ? extends Object> entry) {
+                        Object v = entry.getValue(colIndex);
+                        return v != null && v.toString().toLowerCase().contains(qv);
+                    }
+                });
+            }
+        }
+        if (filters.isEmpty()) {
+            sorter.setRowFilter(null);
+        } else if (filters.size() == 1) {
+            sorter.setRowFilter(filters.get(0));
+        } else {
+            sorter.setRowFilter(RowFilter.andFilter(filters));
+        }
+    }
 
     // DIALOG METHODS ---------------------------------------------------
     private void openAddUserDialog() {
@@ -483,6 +618,32 @@ public class AdminDashboardPanel extends JPanel {
                 "Generating " + reportType + " report...\nReport will be ready shortly!", 
                 "Report Generation", 
                 JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void filterUserTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) userTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(userTable.getModel());
+            userTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
+        }
+    }
+
+    private void filterPaymentTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) paymentTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(paymentTable.getModel());
+            paymentTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
         }
     }
 }

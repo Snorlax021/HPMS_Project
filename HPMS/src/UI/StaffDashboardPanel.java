@@ -3,12 +3,21 @@ package UI;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.event.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
+import javax.swing.RowFilter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ArrayList;
 
-public class StaffDashboardPanel extends JPanel {
+public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
     // THEME (aligned with Admin/Doctor/Patient dashboards)
     private static final Color COLOR_BG = Color.WHITE;
@@ -40,6 +49,9 @@ public class StaffDashboardPanel extends JPanel {
     private JTable billingTable;
     private JTable labTable;
     private JTable admissionTable;
+    // Global search/filter state
+    private String globalSearchQuery;
+    private final Map<String, Map<String,String>> columnFilters = new HashMap<>();
 
     // Summary dynamic labels
     private JLabel lblTotalPatients;
@@ -208,11 +220,35 @@ public class StaffDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
-        root.add(sectionHeader("Patient Registration & Records"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Patient Registration & Records", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Patients:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"ID", "Name", "Age", "Gender", "Status"};
         Object[][] data = {{1, "John Doe", 45, "M", "Active"}, {2, "Jane Smith", 29, "F", "Inactive"}};
         patientRegTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterPatientRegTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterPatientRegTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterPatientRegTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(patientRegTable), BorderLayout.CENTER);
 
         JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
@@ -228,11 +264,35 @@ public class StaffDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
-        root.add(sectionHeader("Medical & Treatment Records"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Medical & Treatment Records", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Records:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Record ID", "Patient", "Type", "Notes"};
         Object[][] data = {{101, "John Doe", "Consultation", "Blood pressure stable"}, {102, "Jane Smith", "Follow-up", "Recommend lab test"}};
         medicalRecordTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterMedicalTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterMedicalTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterMedicalTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(medicalRecordTable), BorderLayout.CENTER);
 
         JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
@@ -248,11 +308,35 @@ public class StaffDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
-        root.add(sectionHeader("Billing & Payment History"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Billing & Payment History", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Billing:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Date", "Patient", "Amount", "Description", "Status"};
         Object[][] data = {{"2025-01-10", "John Doe", "$120", "Consultation", "Unpaid"}, {"2025-01-11", "Jane Smith", "$200", "Lab Test", "Paid"}};
         billingTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterBillingTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterBillingTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterBillingTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(billingTable), BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT)); footer.setOpaque(false);
@@ -268,11 +352,35 @@ public class StaffDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
-        root.add(sectionHeader("Laboratory & Test Management"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Laboratory & Test Management", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Lab Tests:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Test ID", "Patient", "Test", "Status"};
         Object[][] data = {{501, "John Doe", "CBC", "Pending"}, {502, "Jane Smith", "X-Ray", "Completed"}};
         labTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterLabTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterLabTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterLabTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(labTable), BorderLayout.CENTER);
 
         JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
@@ -288,11 +396,35 @@ public class StaffDashboardPanel extends JPanel {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
-        root.add(sectionHeader("Admission & Discharge Management"), BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel header = new JLabel("Admission & Discharge Management", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Admissions:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Admission ID", "Patient", "Room", "Status"};
         Object[][] data = {{801, "John Doe", "101A", "Admitted"}, {802, "Jane Smith", "102B", "Discharged"}};
         admissionTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterAdmissionTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterAdmissionTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterAdmissionTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(admissionTable), BorderLayout.CENTER);
 
         JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
@@ -392,4 +524,101 @@ public class StaffDashboardPanel extends JPanel {
     public JTable getBillingTable(){ return billingTable; }
     public JTable getLabTable(){ return labTable; }
     public JTable getAdmissionTable(){ return admissionTable; }
+
+    @Override
+    public Map<String, JTable> getSearchableTables() {
+        Map<String, JTable> map = new LinkedHashMap<>();
+        if (patientRegTable != null) map.put("patients", patientRegTable);
+        if (medicalRecordTable != null) map.put("medical", medicalRecordTable);
+        if (billingTable != null) map.put("billing", billingTable);
+        if (labTable != null) map.put("lab", labTable);
+        if (admissionTable != null) map.put("admission", admissionTable);
+        return map;
+    }
+    @Override
+    public void applyGlobalSearch(String query) { globalSearchQuery = (query==null||query.isBlank())?null:query.trim(); refreshAllFilters(); }
+    @Override
+    public void clearGlobalSearch() { globalSearchQuery = null; refreshAllFilters(); }
+    @Override
+    public void applyGlobalFilter(String tableName, String columnName, String value) {
+        if (tableName==null||columnName==null) return;
+        Map<String,String> map = columnFilters.computeIfAbsent(tableName,k->new HashMap<>());
+        if (value==null||value.isBlank()) { map.remove(columnName); if(map.isEmpty()) columnFilters.remove(tableName);} else map.put(columnName,value.trim());
+        JTable t = getSearchableTables().get(tableName); if (t!=null) applyFiltersToTable(tableName,t);
+    }
+    @Override
+    public void clearGlobalFilter() { columnFilters.clear(); refreshAllFilters(); }
+    private void refreshAllFilters(){ getSearchableTables().forEach(this::applyFiltersToTable); }
+    @SuppressWarnings("unchecked")
+    private void applyFiltersToTable(String logicalName, JTable table){
+        if (table.getRowSorter()==null) table.setRowSorter(new TableRowSorter<>(table.getModel()));
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) table.getRowSorter();
+        List<RowFilter<TableModel,Object>> filters = new ArrayList<>();
+        if (globalSearchQuery!=null){ final String q=globalSearchQuery.toLowerCase(); filters.add(new RowFilter<TableModel,Object>(){ @Override public boolean include(Entry<? extends TableModel, ? extends Object> entry){ for(int i=0;i<entry.getValueCount();i++){ Object v=entry.getValue(i); if(v!=null && v.toString().toLowerCase().contains(q)) return true;} return false; }}); }
+        Map<String,String> colMap = columnFilters.get(logicalName);
+        if (colMap!=null){ for(Map.Entry<String,String> e: colMap.entrySet()){ String colName=e.getKey(); String val=e.getValue(); if(val==null||val.isBlank()) continue; int colIndex; try{ colIndex=table.getColumnModel().getColumnIndex(colName);} catch(IllegalArgumentException ex){ continue;} final String qv=val.toLowerCase(); filters.add(new RowFilter<TableModel,Object>(){ @Override public boolean include(Entry<? extends TableModel, ? extends Object> entry){ Object v=entry.getValue(colIndex); return v!=null && v.toString().toLowerCase().contains(qv);} }); }}
+        if (filters.isEmpty()) sorter.setRowFilter(null); else if(filters.size()==1) sorter.setRowFilter(filters.get(0)); else sorter.setRowFilter(RowFilter.andFilter(filters));
+    }
+
+    // PATIENT REGISTRATION FILTERING ----------------------------------
+    private void filterPatientRegTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) patientRegTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(patientRegTable.getModel());
+            patientRegTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 3, 4));
+        }
+    }
+    private void filterMedicalTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) medicalRecordTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(medicalRecordTable.getModel());
+            medicalRecordTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
+        }
+    }
+    private void filterBillingTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) billingTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(billingTable.getModel());
+            billingTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 3, 4));
+        }
+    }
+    private void filterLabTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) labTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(labTable.getModel());
+            labTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
+        }
+    }
+    private void filterAdmissionTable(String query) {
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) admissionTable.getRowSorter();
+        if (sorter == null) {
+            sorter = new TableRowSorter<>(admissionTable.getModel());
+            admissionTable.setRowSorter(sorter);
+        }
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 3));
+        }
+    }
 }
