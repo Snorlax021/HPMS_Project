@@ -116,7 +116,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         btnMedical = createNavButton("Medical Records", "MEDICAL");
         btnBilling = createNavButton("Billing History", "BILLING");
         btnLab = createNavButton("Lab Tests", "LAB");
-        btnAdmission = createNavButton("Admission", "ADMISSION");
+        btnAdmission = createNavButton("Admission & Discharge", "ADMISSION");
 
         sideNavPanel.add(Box.createVerticalStrut(6));
         sideNavPanel.add(btnSummary);

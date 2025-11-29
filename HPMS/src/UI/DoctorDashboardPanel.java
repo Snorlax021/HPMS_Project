@@ -7,6 +7,8 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.RowFilter;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -78,23 +80,6 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
         right.setOpaque(false);
-
-        // Search components
-        JTextField searchField = new JTextField(15);
-        searchField.setFont(FONT_NORMAL);
-        JButton btnSearch = new JButton("Search");
-        styleSecondaryButton(btnSearch);
-        btnSearch.addActionListener(e -> applyGlobalSearch(searchField.getText()));
-        JButton btnClear = new JButton("Clear");
-        styleSecondaryButton(btnClear);
-        btnClear.addActionListener(e -> {
-            searchField.setText("");
-            clearGlobalSearch();
-        });
-
-        right.add(searchField);
-        right.add(btnSearch);
-        right.add(btnClear);
 
         JButton btnRefresh = new JButton("Refresh");
         styleSecondaryButton(btnRefresh);
@@ -225,11 +210,22 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
         JLabel header = new JLabel("Patient Management", SwingConstants.LEFT);
         header.setFont(FONT_SECTION);
         header.setForeground(COLOR_PRIMARY.darker());
         header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        root.add(header, BorderLayout.NORTH);
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Patients:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
@@ -242,6 +238,14 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         String[] cols = {"ID", "Name", "Age", "Condition"};
         Object[][] data = {{1, "Alice Johnson", 45, "Hypertension"}, {2, "Bob Lee", 32, "Diabetes"}};
         patientsTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterPatientsTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterPatientsTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterPatientsTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(patientsTable), BorderLayout.CENTER);
         return root;
     }
@@ -252,15 +256,34 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
         JLabel header = new JLabel("Reports History", SwingConstants.LEFT);
         header.setFont(FONT_SECTION);
         header.setForeground(COLOR_PRIMARY.darker());
         header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        root.add(header, BorderLayout.NORTH);
+        topPanel.add(header, BorderLayout.NORTH);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Reports:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Date", "Patient", "Type", "Status"};
         Object[][] data = {{"2025-01-10", "Alice Johnson", "Lab", "Completed"}, {"2025-01-11", "Bob Lee", "Imaging", "Pending"}};
         reportsTable = new JTable(new DefaultTableModel(data, cols));
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
+        });
+
         root.add(new JScrollPane(reportsTable), BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -353,13 +376,30 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private void openAssignAppointmentDialog() {
         int row = patientsTable.getSelectedRow();
         if (row == -1) { JOptionPane.showMessageDialog(this, "Select a patient first."); return; }
-        JPanel panel = new JPanel(new GridLayout(2, 2, 8, 8));
+        JPanel panel = new JPanel(new GridLayout(3, 2, 8, 8));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
         panel.add(new JLabel("Date (YYYY-MM-DD):")); JTextField date = new JTextField(); panel.add(date);
+        panel.add(new JLabel("Time (HH:MM optional):")); JTextField time = new JTextField(); panel.add(time);
         panel.add(new JLabel("Type:")); JComboBox<String> type = new JComboBox<>(new String[]{"Consultation", "Follow-up", "Procedure"}); panel.add(type);
         int result = JOptionPane.showConfirmDialog(this, panel, "Assign Appointment", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
-            JOptionPane.showMessageDialog(this, "Appointment assigned on " + date.getText() + " (" + type.getSelectedItem() + ")");
+            String dateStr = date.getText().trim();
+            if (dateStr.isEmpty()) { JOptionPane.showMessageDialog(this, "Date required.", "Warning", JOptionPane.WARNING_MESSAGE); return; }
+            java.time.LocalDate parsed;
+            try {
+                parsed = java.time.LocalDate.parse(dateStr);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Invalid date format. Use YYYY-MM-DD.", "Error", JOptionPane.ERROR_MESSAGE); return;
+            }
+            java.time.LocalDate today = java.time.LocalDate.now();
+            if (parsed.isBefore(today)) {
+                JOptionPane.showMessageDialog(this, "Cannot assign an appointment in the past.", "Error", JOptionPane.ERROR_MESSAGE); return;
+            }
+            if (parsed.isAfter(today.plusYears(2))) { // arbitrary future cap
+                JOptionPane.showMessageDialog(this, "Date too far in the future.", "Error", JOptionPane.ERROR_MESSAGE); return;
+            }
+            // If we maintain an appointments table for doctor context later, we could add here.
+            JOptionPane.showMessageDialog(this, "Appointment assigned on " + parsed + " (" + type.getSelectedItem() + ")");
         }
     }
 
@@ -437,5 +477,29 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         if (filters.isEmpty()) sorter.setRowFilter(null);
         else if (filters.size()==1) sorter.setRowFilter(filters.get(0));
         else sorter.setRowFilter(RowFilter.andFilter(filters));
+    }
+
+    private void filterPatientsTable(String query) {
+        if (patientsTable.getRowSorter() == null) {
+            patientsTable.setRowSorter(new TableRowSorter<>(patientsTable.getModel()));
+        }
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) patientsTable.getRowSorter();
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query.trim()));
+        }
+    }
+
+    private void filterReportsTable(String query) {
+        if (reportsTable.getRowSorter() == null) {
+            reportsTable.setRowSorter(new TableRowSorter<>(reportsTable.getModel()));
+        }
+        TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) reportsTable.getRowSorter();
+        if (query == null || query.trim().isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query.trim()));
+        }
     }
 }

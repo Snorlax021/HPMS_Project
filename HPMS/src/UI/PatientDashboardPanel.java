@@ -259,7 +259,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(topPanel, BorderLayout.NORTH);
 
-        String[] cols = {"Date", "Time", "Doctor", "Description"};
+        String[] cols = {"Date", "Time", "Doctor", "Type"};
         Object[][] data = {{"2025-01-15", "09:00", "Dr. Smith", "Follow-up"}, {"2025-01-20", "14:30", "Dr. Adams", "Consultation"}};
         appointmentsTable = new JTable(new DefaultTableModel(data, cols));
 
@@ -458,23 +458,30 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
     private void openScheduleDialog() {
         JPanel panel = new JPanel(new GridLayout(3, 2, 8, 8));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        panel.add(new JLabel("Date:")); JTextField date = new JTextField(); panel.add(date);
-        panel.add(new JLabel("Time:")); JTextField time = new JTextField(); panel.add(time);
-        panel.add(new JLabel("Description:")); JTextField desc = new JTextField(); panel.add(desc);
+        panel.add(new JLabel("Date (YYYY-MM-DD):")); JTextField date = new JTextField(); panel.add(date);
+        panel.add(new JLabel("Time (HH:MM):")); JTextField time = new JTextField(); panel.add(time);
+        panel.add(new JLabel("Type:")); JComboBox<String> type = new JComboBox<>(new String[]{"Consultation", "Follow-up", "Procedure"}); panel.add(type);
         int res = JOptionPane.showConfirmDialog(this, panel, "Schedule Appointment", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (res == JOptionPane.OK_OPTION) {
-            if (!date.getText().isEmpty()) {
-                DefaultTableModel m = (DefaultTableModel) appointmentsTable.getModel();
-                m.addRow(new Object[]{date.getText(), time.getText(), "Dr. Smith", desc.getText()});
-                JOptionPane.showMessageDialog(this, "Appointment scheduled.");
-            } else JOptionPane.showMessageDialog(this, "Date required.", "Warning", JOptionPane.WARNING_MESSAGE);
+            String dateStr = date.getText().trim();
+            if (dateStr.isEmpty()) { JOptionPane.showMessageDialog(this, "Date required.", "Warning", JOptionPane.WARNING_MESSAGE); return; }
+            java.time.LocalDate parsed;
+            try { parsed = java.time.LocalDate.parse(dateStr); } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Invalid date format. Use YYYY-MM-DD.", "Error", JOptionPane.ERROR_MESSAGE); return;
+            }
+            java.time.LocalDate today = java.time.LocalDate.now();
+            if (parsed.isBefore(today)) { JOptionPane.showMessageDialog(this, "You cannot schedule an appointment in the past.", "Error", JOptionPane.ERROR_MESSAGE); return; }
+            if (parsed.isAfter(today.plusYears(2))) { JOptionPane.showMessageDialog(this, "Date too far in the future.", "Error", JOptionPane.ERROR_MESSAGE); return; }
+            DefaultTableModel m = (DefaultTableModel) appointmentsTable.getModel();
+            m.addRow(new Object[]{parsed.toString(), time.getText().trim(), "Dr. Smith", type.getSelectedItem().toString()});
+            JOptionPane.showMessageDialog(this, "Appointment scheduled.");
         }
     }
     private void openViewAppointment() {
         int row = appointmentsTable.getSelectedRow();
         if (row == -1) { JOptionPane.showMessageDialog(this, "Select an appointment first."); return; }
         DefaultTableModel m = (DefaultTableModel) appointmentsTable.getModel();
-        String info = String.format("Date: %s\nTime: %s\nDoctor: %s\nDescription: %s", m.getValueAt(row,0), m.getValueAt(row,1), m.getValueAt(row,2), m.getValueAt(row,3));
+        String info = String.format("Date: %s\nTime: %s\nDoctor: %s\nType: %s", m.getValueAt(row,0), m.getValueAt(row,1), m.getValueAt(row,2), m.getValueAt(row,3));
         JOptionPane.showMessageDialog(this, info, "Appointment Details", JOptionPane.INFORMATION_MESSAGE);
     }
     private void openCancelAppointment() {
