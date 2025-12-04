@@ -41,7 +41,11 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private JButton btnAdmission;
     private JButton activeButton;
 
+    private String currentUsername;
     private String subRole; // REGISTRATION, BILLING, LAB (optional)
+
+    // NEW: Keep a reference to the username label to toggle visibility
+    private JLabel userTagLabel;
 
     // Tables
     private JTable patientRegTable;
@@ -58,8 +62,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private JLabel lblPendingBills;
     private JLabel lblLabPending;
 
-    public StaffDashboardPanel() { this(null); }
-    public StaffDashboardPanel(String subRole) {
+    public StaffDashboardPanel(String username) { this(null, username); }
+    public StaffDashboardPanel(String subRole, String username) {
+        this.currentUsername = username;
         this.subRole = subRole != null ? subRole.toUpperCase() : null;
         setBackground(COLOR_BG);
         setBorder(new EmptyBorder(8, 8, 8, 8));
@@ -84,23 +89,26 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
     private JComponent createHeader() {
         JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(Color.WHITE);
         header.setBorder(new LineBorder(COLOR_BORDER));
+        header.setBackground(Color.WHITE);
         header.setPreferredSize(new Dimension(0, 55));
 
-        JLabel title = new JLabel("Staff Dashboard", SwingConstants.LEFT);
+        // Left side: title (with subRole if any) — username removed
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        left.setOpaque(false);
+        // Remove adding of username label
+        userTagLabel = null;
+
+        String titleText = (subRole != null && !subRole.isBlank()) ? "Staff Dashboard - " + subRole : "Staff Dashboard";
+        JLabel title = new JLabel(titleText);
         title.setFont(FONT_TITLE);
         title.setForeground(COLOR_PRIMARY.darker());
-        title.setBorder(new EmptyBorder(0, 16, 0, 0));
-        header.add(title, BorderLayout.WEST);
+        left.add(title);
 
-        if (subRole != null) {
-            JLabel roleBanner = new JLabel("Sub-Role: " + subRole, SwingConstants.RIGHT);
-            roleBanner.setFont(new Font("Segoe UI", Font.BOLD, 14));
-            roleBanner.setForeground(COLOR_PRIMARY);
-            roleBanner.setBorder(new EmptyBorder(0, 0, 0, 16));
-            header.add(roleBanner, BorderLayout.EAST);
-        }
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
+        right.setOpaque(false);
+        header.add(left, BorderLayout.WEST);
+        header.add(right, BorderLayout.EAST);
         return header;
     }
 
@@ -117,6 +125,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         btnBilling = createNavButton("Billing History", "BILLING");
         btnLab = createNavButton("Lab Tests", "LAB");
         btnAdmission = createNavButton("Admission & Discharge", "ADMISSION");
+        JButton btnGuide = createNavButton("User Guide", "GUIDE");
 
         sideNavPanel.add(Box.createVerticalStrut(6));
         sideNavPanel.add(btnSummary);
@@ -125,6 +134,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         sideNavPanel.add(btnBilling);
         sideNavPanel.add(btnLab);
         sideNavPanel.add(btnAdmission);
+        sideNavPanel.add(btnGuide);
         sideNavPanel.add(Box.createVerticalGlue());
         return sideNavPanel;
     }
@@ -154,6 +164,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         activeButton = button;
         activeButton.setBackground(COLOR_ACTIVE);
         activeButton.setForeground(Color.WHITE);
+        // Username is no longer shown anywhere
         cardLayout.show(mainContentPanel, card);
     }
 
@@ -169,6 +180,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.add(buildBillingPanel(), "BILLING");
         mainContentPanel.add(buildLabPanel(), "LAB");
         mainContentPanel.add(buildAdmissionPanel(), "ADMISSION");
+        mainContentPanel.add(buildGuidePanel(), "GUIDE");
         return mainContentPanel;
     }
 
@@ -432,6 +444,30 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         styleToolbarButton(toolbar, "Discharge", this::openDischargePatientDialog);
         styleToolbarButton(toolbar, "Transfer", this::openTransferPatientDialog);
         root.add(toolbar, BorderLayout.SOUTH);
+        return root;
+    }
+
+    // USER GUIDE ------------------------------------------------------
+    private JPanel buildGuidePanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
+        root.add(sectionHeader("User Guide"), BorderLayout.NORTH);
+
+        JTextArea area = new JTextArea(
+            "Welcome to the Staff User Guide.\n\n" +
+            "Navigation:\n- Use the left menu to manage Summary, Patient Registration, Medical Records, Billing, Lab, Admission, and this Guide.\n\n" +
+            "Patient Registration:\n- Add, view, deactivate patients; use the search box to filter.\n\n" +
+            "Medical Records:\n- Add, view, remove treatment records.\n\n" +
+            "Billing:\n- Search bills, mark as paid, and export history.\n\n" +
+            "Lab:\n- Add tests, update status, and complete tests.\n\n" +
+            "Admission:\n- Admit, discharge, and transfer patients.\n\n" +
+            "Tips:\n- Use global search/filter when available to narrow results.\n- Toolbar buttons at the bottom provide common actions.");
+        area.setEditable(false);
+        area.setFont(FONT_NORMAL);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        root.add(new JScrollPane(area), BorderLayout.CENTER);
         return root;
     }
 

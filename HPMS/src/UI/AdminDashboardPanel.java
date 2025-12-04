@@ -16,6 +16,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import javax.swing.event.*;
+import Model.Role;
+import Model.User;
+import Service.UserService;
 
 public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -53,8 +56,14 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
     // Global search/filter state
     private String globalSearchQuery;
     private final Map<String, Map<String, String>> columnFilters = new HashMap<>();
+    private final UserService userService = UserService.getInstance();
+    private final String currentUsername;
+    // NEW: username label reference to control visibility
+    private JLabel userTagLabel;
 
-    public AdminDashboardPanel() {
+    public AdminDashboardPanel() { this(null); }
+    public AdminDashboardPanel(String username) {
+        this.currentUsername = username;
         setBackground(COLOR_BG);
         setBorder(new EmptyBorder(8, 8, 8, 8));
         setLayout(new BorderLayout(8, 8));
@@ -74,10 +83,16 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         header.setBackground(Color.WHITE);
         header.setPreferredSize(new Dimension(0, 55));
 
-        JLabel title = new JLabel("Admin Dashboard", SwingConstants.LEFT);
+        // Left container: title only — username removed
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        left.setOpaque(false);
+        // Do not add username label anymore
+        userTagLabel = null;
+
+        JLabel title = new JLabel("Admin Dashboard");
         title.setFont(FONT_TITLE);
-        title.setBorder(new EmptyBorder(0, 16, 0, 0));
         title.setForeground(COLOR_PRIMARY.darker());
+        left.add(title);
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
         right.setOpaque(false);
@@ -86,7 +101,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         btnRefresh.addActionListener(e -> JOptionPane.showMessageDialog(this, "Data refreshed (placeholder)", "Info", JOptionPane.INFORMATION_MESSAGE));
         right.add(btnRefresh);
 
-        header.add(title, BorderLayout.WEST);
+        header.add(left, BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
         return header;
     }
@@ -104,12 +119,14 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         btnUsers = createNavButton("User Management", "USERS");
         btnPayments = createNavButton("Payments", "PAYMENTS");
         btnSummary = createNavButton("Summary", "SUMMARY");
+        JButton btnGuide = createNavButton("User Guide", "GUIDE");
 
         sideNavPanel.add(Box.createVerticalStrut(6));
         sideNavPanel.add(btnDashboard);
         sideNavPanel.add(btnUsers);
         sideNavPanel.add(btnPayments);
         sideNavPanel.add(btnSummary);
+        sideNavPanel.add(btnGuide);
         sideNavPanel.add(Box.createVerticalGlue());
 
         return sideNavPanel;
@@ -141,6 +158,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         activeButton = button;
         activeButton.setBackground(COLOR_ACTIVE);
         activeButton.setForeground(Color.WHITE);
+        // Username no longer shown
         cardLayout.show(mainContentPanel, card);
     }
 
@@ -155,6 +173,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.add(buildUserPanel(), "USERS");
         mainContentPanel.add(buildPaymentPanel(), "PAYMENTS");
         mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
+        mainContentPanel.add(buildGuidePanel(), "GUIDE");
         return mainContentPanel;
     }
 
@@ -241,13 +260,16 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         toolbar.setFloatable(false);
         styleToolbarButton(toolbar, "Add", this::openAddUserDialog);
         styleToolbarButton(toolbar, "Edit", this::openEditUserDialog);
+        styleToolbarButton(toolbar, "Reset Password", this::openResetPasswordDialog);
         styleToolbarButton(toolbar, "Delete", this::openDeleteUserDialog);
         styleToolbarButton(toolbar, "Export", this::openExportDialog);
         root.add(toolbar, BorderLayout.SOUTH);
 
-        String[] cols = {"ID", "Name", "Role", "Status"};
-        Object[][] data = {{1, "John Doe", "Doctor", "Active"}, {2, "Jane Smith", "Staff", "Active"}, {3, "Robert Admin", "Admin", "Disabled"}};
-        userTable = new JTable(new DefaultTableModel(data, cols));
+        String[] cols = {"Username", "Role"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) { @Override public boolean isCellEditable(int r,int c){return false;} };
+        userTable = new JTable(model);
+        // load users from service
+        reloadUsersTable();
 
         // Add search listener
         searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -260,27 +282,12 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         return root;
     }
 
-    private void styleToolbarButton(JToolBar bar, String text, Runnable action) {
-        JButton b = new JButton(text);
-        b.setFont(FONT_NORMAL);
-        b.addActionListener(e -> action.run());
-        bar.add(b);
-    }
-
-    private void showInfo(String msg) {
-        JOptionPane.showMessageDialog(this, msg, "Action", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void styleSecondaryButton(JButton b) {
-        b.setFont(FONT_NORMAL);
-        b.setBackground(Color.WHITE);
-        b.setBorder(new LineBorder(COLOR_BORDER));
-        b.setFocusPainted(false);
-        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { b.setBackground(COLOR_PRIMARY_HOVER); }
-            @Override public void mouseExited(MouseEvent e) { b.setBackground(Color.WHITE); }
-        });
+    private void reloadUsersTable() {
+        DefaultTableModel model = (DefaultTableModel) userTable.getModel();
+        model.setRowCount(0);
+        for (User u : userService.getAllUsers()) {
+            model.addRow(new Object[]{u.getUsername(), u.getRole().name()});
+        }
     }
 
     // PAYMENT PANEL ----------------------------------------------------
@@ -355,6 +362,35 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         footer.setOpaque(false);
         footer.add(btnGenerate);
         root.add(footer, BorderLayout.SOUTH);
+        return root;
+    }
+
+    // USER GUIDE PANEL ----------------------------------------------------
+    private JPanel buildGuidePanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JLabel header = new JLabel("User Guide", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
+
+        JTextArea area = new JTextArea();
+        area.setFont(FONT_NORMAL);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setText(
+            "Welcome to the Admin User Guide.\n\n" +
+            "Navigation:\n- Use the left sidebar to access Dashboard, Users, Payments, Summary, and this Guide.\n\n" +
+            "User Management:\n- Add, edit roles, reset passwords, delete, and export users from the Users tab.\n\n" +
+            "Payments:\n- Review payment history and export reports.\n\n" +
+            "Summary:\n- Generate daily/weekly/monthly/yearly summary reports.\n\n" +
+            "Tips:\n- Use search boxes to quickly filter tables.\n- Right-hand buttons provide actions like Refresh and Export.\n- Changes reflect immediately in tables.");
+        root.add(new JScrollPane(area), BorderLayout.CENTER);
+
         return root;
     }
 
@@ -455,26 +491,16 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
 
     // DIALOG METHODS ---------------------------------------------------
     private void openAddUserDialog() {
-        JPanel panel = new JPanel(new GridLayout(5, 2, 8, 8));
+        JPanel panel = new JPanel(new GridLayout(3, 2, 8, 8));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        panel.add(new JLabel("Name:"));
-        JTextField nameField = new JTextField();
-        panel.add(nameField);
-
-        panel.add(new JLabel("Email:"));
-        JTextField emailField = new JTextField();
-        panel.add(emailField);
+        panel.add(new JLabel("Username:"));
+        JTextField usernameField = new JTextField();
+        panel.add(usernameField);
 
         panel.add(new JLabel("Role:"));
-        String[] roles = {"Doctor", "Staff", "Admin", "Patient"};
-        JComboBox<String> roleCombo = new JComboBox<>(roles);
+        JComboBox<Role> roleCombo = new JComboBox<>(Role.values());
         panel.add(roleCombo);
-
-        panel.add(new JLabel("Status:"));
-        String[] statuses = {"Active", "Disabled"};
-        JComboBox<String> statusCombo = new JComboBox<>(statuses);
-        panel.add(statusCombo);
 
         panel.add(new JLabel("Password:"));
         JPasswordField passField = new JPasswordField();
@@ -482,75 +508,154 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
 
         int result = JOptionPane.showConfirmDialog(this, panel, "Add New User", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
-            String name = nameField.getText();
-            String email = emailField.getText();
-            String role = (String) roleCombo.getSelectedItem();
-            String status = (String) statusCombo.getSelectedItem();
-            
-            if (!name.isEmpty() && !email.isEmpty()) {
-                DefaultTableModel model = (DefaultTableModel) userTable.getModel();
-                int newId = model.getRowCount() + 1;
-                model.addRow(new Object[]{newId, name, role, status});
-                JOptionPane.showMessageDialog(this, "User added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } else {
+            String username = usernameField.getText().trim();
+            char[] pw = passField.getPassword();
+            if (username.isEmpty() || pw.length == 0) {
                 JOptionPane.showMessageDialog(this, "Please fill in all fields!", "Warning", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                userService.createUser(username, pw, (Role) roleCombo.getSelectedItem());
+                // password cleared inside service
+                reloadUsersTable();
+                JOptionPane.showMessageDialog(this, "User added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
 
     private void openEditUserDialog() {
-        int selectedRow = userTable.getSelectedRow();
-        if (selectedRow == -1) {
+        int viewRow = userTable.getSelectedRow();
+        if (viewRow == -1) {
             JOptionPane.showMessageDialog(this, "Please select a user to edit!", "Warning", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
+        int row = userTable.convertRowIndexToModel(viewRow);
         DefaultTableModel model = (DefaultTableModel) userTable.getModel();
-        JPanel panel = new JPanel(new GridLayout(4, 2, 8, 8));
+        String username = (String) model.getValueAt(row, 0);
+        Role currentRole = Role.valueOf(((String) model.getValueAt(row, 1)).toUpperCase());
+
+        JPanel panel = new JPanel(new GridLayout(2, 2, 8, 8));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        panel.add(new JLabel("Name:"));
-        JTextField nameField = new JTextField(model.getValueAt(selectedRow, 1).toString());
-        panel.add(nameField);
+        panel.add(new JLabel("Username:"));
+        JTextField usernameField = new JTextField(username);
+        usernameField.setEditable(false);
+        panel.add(usernameField);
 
         panel.add(new JLabel("Role:"));
-        String[] roles = {"Doctor", "Staff", "Admin", "Patient"};
-        JComboBox<String> roleCombo = new JComboBox<>(roles);
-        roleCombo.setSelectedItem(model.getValueAt(selectedRow, 2));
+        JComboBox<Role> roleCombo = new JComboBox<>(Role.values());
+        roleCombo.setSelectedItem(currentRole);
         panel.add(roleCombo);
 
-        panel.add(new JLabel("Status:"));
-        String[] statuses = {"Active", "Disabled"};
-        JComboBox<String> statusCombo = new JComboBox<>(statuses);
-        statusCombo.setSelectedItem(model.getValueAt(selectedRow, 3));
-        panel.add(statusCombo);
-
-        int result = JOptionPane.showConfirmDialog(this, panel, "Edit User", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int result = JOptionPane.showConfirmDialog(this, panel, "Edit User Role", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
-            model.setValueAt(nameField.getText(), selectedRow, 1);
-            model.setValueAt(roleCombo.getSelectedItem(), selectedRow, 2);
-            model.setValueAt(statusCombo.getSelectedItem(), selectedRow, 3);
-            JOptionPane.showMessageDialog(this, "User updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            Role newRole = (Role) roleCombo.getSelectedItem();
+            if (newRole != null && newRole != currentRole) {
+                // Use username to find user id then update
+                userService.findByUsername(username).ifPresentOrElse(u -> {
+                    boolean ok = userService.updateRoleById(u.getId(), newRole);
+                    if (ok) {
+                        model.setValueAt(newRole.name(), row, 1);
+                        JOptionPane.showMessageDialog(this, "User updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Failed to update user!", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }, () -> JOptionPane.showMessageDialog(this, "User not found.", "Error", JOptionPane.ERROR_MESSAGE));
+            }
+        }
+    }
+
+    private void openResetPasswordDialog() {
+        int viewRow = userTable.getSelectedRow();
+        if (viewRow == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a user to reset password!", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = userTable.convertRowIndexToModel(viewRow);
+        DefaultTableModel model = (DefaultTableModel) userTable.getModel();
+        String username = (String) model.getValueAt(row, 0);
+
+        JPanel panel = new JPanel(new GridLayout(3, 3, 8, 8));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // Username (read-only)
+        panel.add(new JLabel("User:"));
+        JTextField userField = new JTextField(username);
+        userField.setEditable(false);
+        panel.add(userField);
+        panel.add(new JLabel(""));
+
+        // Old password
+        panel.add(new JLabel("Old Password:"));
+        JPasswordField oldPassField = new JPasswordField();
+        panel.add(oldPassField);
+        JButton toggleOld = new JButton("Show");
+        toggleOld.addActionListener(e -> {
+            oldPassField.setEchoChar(oldPassField.getEchoChar() == 0 ? (char) 8226 : (char) 0);
+            toggleOld.setText(oldPassField.getEchoChar() == 0 ? "Show" : "Hide");
+        });
+        panel.add(toggleOld);
+
+        // New password
+        panel.add(new JLabel("New Password:"));
+        JPasswordField newPassField = new JPasswordField();
+        panel.add(newPassField);
+        JButton toggleNew = new JButton("Show");
+        toggleNew.addActionListener(e -> {
+            newPassField.setEchoChar(newPassField.getEchoChar() == 0 ? (char) 8226 : (char) 0);
+            toggleNew.setText(newPassField.getEchoChar() == 0 ? "Show" : "Hide");
+        });
+        panel.add(toggleNew);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Reset Password (Confirm Old First)", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            char[] oldPw = oldPassField.getPassword();
+            char[] newPw = newPassField.getPassword();
+            if (oldPw == null || oldPw.length == 0 || newPw == null || newPw.length == 0) {
+                JOptionPane.showMessageDialog(this, "Please enter both old and new passwords.", "Warning", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                boolean ok = userService.changePassword(username, oldPw, newPw);
+                if (ok) {
+                    JOptionPane.showMessageDialog(this, "Password changed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Old password is incorrect.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
     private void openDeleteUserDialog() {
-        int selectedRow = userTable.getSelectedRow();
-        if (selectedRow == -1) {
+        int viewRow = userTable.getSelectedRow();
+        if (viewRow == -1) {
             JOptionPane.showMessageDialog(this, "Please select a user to delete!", "Warning", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        int row = userTable.convertRowIndexToModel(viewRow);
+        DefaultTableModel model = (DefaultTableModel) userTable.getModel();
+        String username = (String) model.getValueAt(row, 0);
 
-        int confirm = JOptionPane.showConfirmDialog(this, 
-            "Are you sure you want to delete this user?", 
-            "Confirm Delete", 
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Are you sure you want to delete '" + username + "'?",
+            "Confirm Delete",
             JOptionPane.YES_NO_OPTION,
             JOptionPane.QUESTION_MESSAGE);
-        
+
         if (confirm == JOptionPane.YES_OPTION) {
-            DefaultTableModel model = (DefaultTableModel) userTable.getModel();
-            model.removeRow(selectedRow);
-            JOptionPane.showMessageDialog(this, "User deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            userService.findByUsername(username).ifPresentOrElse(u -> {
+                boolean ok = userService.deleteById(u.getId());
+                if (ok) {
+                    model.removeRow(row);
+                    JOptionPane.showMessageDialog(this, "User deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Failed to delete user!", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }, () -> JOptionPane.showMessageDialog(this, "User not found!", "Error", JOptionPane.ERROR_MESSAGE));
         }
     }
 
@@ -630,7 +735,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         if (query == null || query.trim().isEmpty()) {
             sorter.setRowFilter(null);
         } else {
-            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 0, 1));
         }
     }
 
@@ -645,5 +750,24 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         } else {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
         }
+    }
+
+    private void styleToolbarButton(JToolBar bar, String text, Runnable action) {
+        JButton b = new JButton(text);
+        b.setFont(FONT_NORMAL);
+        b.addActionListener(e -> action.run());
+        bar.add(b);
+    }
+
+    private void styleSecondaryButton(JButton b) {
+        b.setFont(FONT_NORMAL);
+        b.setBackground(Color.WHITE);
+        b.setBorder(new LineBorder(COLOR_BORDER));
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { b.setBackground(COLOR_PRIMARY_HOVER); }
+            @Override public void mouseExited(MouseEvent e) { b.setBackground(Color.WHITE); }
+        });
     }
 }

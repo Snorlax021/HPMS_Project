@@ -1,4 +1,4 @@
- package Service;
+package Service;
 
 import Model.Role;
 import Model.User;
@@ -7,7 +7,9 @@ import Util.PasswordHasher;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Arrays; // added for secure clearing of password char arrays
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * In-memory User service / repository with basic user management and authentication logic.
@@ -16,6 +18,10 @@ import java.util.Arrays; // added for secure clearing of password char arrays
  */
 public class UserService {
     private final Map<String, User> usersByUsername = new ConcurrentHashMap<>();
+
+    // Singleton holder for sharing the same in-memory store app-wide
+    private static class Holder { static final UserService INSTANCE = new UserService(); }
+    public static UserService getInstance() { return Holder.INSTANCE; }
 
     public UserService() {}
 
@@ -78,6 +84,45 @@ public class UserService {
         return Optional.ofNullable(usersByUsername.get(username.trim().toLowerCase()));
     }
 
+    public List<User> getAllUsers() {
+        return new ArrayList<>(usersByUsername.values());
+    }
+
+    public Optional<User> findById(String id) {
+        if (id == null) return Optional.empty();
+        return usersByUsername.values().stream().filter(u -> id.equals(u.getId())).findFirst();
+    }
+
+    public boolean updateRoleById(String id, Role newRole) {
+        Optional<User> opt = findById(id);
+        if (opt.isEmpty()) return false;
+        opt.get().setRole(newRole);
+        return true;
+    }
+
+    public boolean resetPasswordById(String id, char[] newPassword) {
+        Optional<User> opt = findById(id);
+        if (opt.isEmpty()) return false;
+        validatePassword(newPassword);
+        String newHash = PasswordHasher.hash(newPassword);
+        Arrays.fill(newPassword, '\0');
+        opt.get().setPasswordHash(newHash);
+        return true;
+    }
+
+    public boolean deleteById(String id) {
+        if (id == null) return false;
+        String keyToRemove = null;
+        for (Map.Entry<String, User> e : usersByUsername.entrySet()) {
+            if (id.equals(e.getValue().getId())) { keyToRemove = e.getKey(); break; }
+        }
+        if (keyToRemove != null) {
+            usersByUsername.remove(keyToRemove);
+            return true;
+        }
+        return false;
+    }
+
     // Simple password policy: minimum length and at least one digit and one letter.
     private void validatePassword(char[] password) {
         if (password == null || password.length < 8) {
@@ -104,5 +149,10 @@ public class UserService {
         try { createUser("doctor", "doctor123".toCharArray(), Role.DOCTOR); } catch (Exception ignored) {}
         try { createUser("staff", "staff123".toCharArray(), Role.STAFF); } catch (Exception ignored) {}
         try { createUser("patient", "patient123".toCharArray(), Role.PATIENT); } catch (Exception ignored) {}
+        // Additional demo accounts
+        try { createUser("drjohn", "Doctor123".toCharArray(), Role.DOCTOR); } catch (Exception ignored) {}
+        try { createUser("staffjane", "Staff1234".toCharArray(), Role.STAFF); } catch (Exception ignored) {}
+        // New patient login account: fred / Fred1234
+        try { createUser("fred", "Fred1234".toCharArray(), Role.PATIENT); } catch (Exception ignored) {}
     }
 }

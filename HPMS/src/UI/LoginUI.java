@@ -2,8 +2,14 @@ package UI;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.security.*;
 import javax.swing.*;
+
+import Model.Role;
+import Model.User;
+import Service.UserService;
+
+import java.util.Arrays;
+import java.util.Optional;
 
 public class LoginUI extends JFrame {
 
@@ -11,10 +17,12 @@ public class LoginUI extends JFrame {
     private JTextField usernameField;
     private JPasswordField passwordField;
     private char defaultEcho;
-    private String selectedRole;
+    private final UserService userService; // use app service for auth
 
     public LoginUI(String role) {
-        this.selectedRole = role;
+        this.userService = UserService.getInstance();
+        // Seed demo users (idempotent)
+        this.userService.createDefaultDemoUsers();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setBounds(100, 100, 650, 500);
@@ -30,7 +38,7 @@ public class LoginUI extends JFrame {
         contentPane.add(panelTop);
         panelTop.setLayout(null);
 
-        JLabel lblHeader = new JLabel("HPMS - Login (" + selectedRole + ")");
+        JLabel lblHeader = new JLabel("HPMS - Login");
         lblHeader.setForeground(Color.WHITE);
         lblHeader.setFont(new Font("Tahoma", Font.BOLD, 16));
         lblHeader.setBounds(10, 11, 300, 35);
@@ -80,6 +88,9 @@ public class LoginUI extends JFrame {
         passwordField.addKeyListener(enterToLogin);
     }
 
+    // Convenience no-arg constructor
+    public LoginUI() { this(null); }
+
     private void togglePassword(JButton btn) {
         if (passwordField.getEchoChar() == 0) {
             passwordField.setEchoChar(defaultEcho);
@@ -92,52 +103,39 @@ public class LoginUI extends JFrame {
 
     private void loginUser() {
         String username = usernameField.getText().trim();
-        String password = new String(passwordField.getPassword());
-        if (username.isEmpty() || password.isEmpty()) {
+        char[] password = passwordField.getPassword();
+        if (username.isEmpty() || password.length == 0) {
             JOptionPane.showMessageDialog(this, "Please fill in both username and password.", "Missing Information", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        String roleNormalized = selectedRole == null ? "" : selectedRole.trim().toUpperCase();
 
-        // Unified credential map (username + hashed password) - demo only
-        java.util.Map<String, String[]> creds = new java.util.HashMap<>();
-        creds.put("ADMIN", new String[]{"admin", hashPassword("admin123")});
-        creds.put("DOCTOR", new String[]{"doctor", hashPassword("doctor123")});
-        creds.put("STAFF", new String[]{"staff", hashPassword("staff123")});
-        creds.put("PATIENT", new String[]{"patient", hashPassword("patient123")});
+        Optional<User> auth = userService.authenticate(username, password);
+        // Clear sensitive data ASAP
+        Arrays.fill(password, '\0');
 
-        if (!creds.containsKey(roleNormalized)) {
-            JOptionPane.showMessageDialog(this, "Unknown role: " + selectedRole + "\nValid roles: Admin, Doctor, Staff, Patient", "Role Error", JOptionPane.ERROR_MESSAGE);
+        if (auth.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Incorrect username or password.", "Login Failed", JOptionPane.ERROR_MESSAGE);
+            passwordField.setText("");
             return;
         }
 
-        String[] expected = creds.get(roleNormalized);
-        String hashedInput = hashPassword(password);
-        if (!username.equalsIgnoreCase(expected[0])) {
-            JOptionPane.showMessageDialog(this, "Incorrect username for role " + selectedRole + ".", "Login Failed", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        if (!hashedInput.equals(expected[1])) {
-            JOptionPane.showMessageDialog(this, "Incorrect password.", "Login Failed", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        User user = auth.get();
+        Role actualRole = user.getRole();
 
         JOptionPane.showMessageDialog(this, "Login Successful!", "Welcome", JOptionPane.INFORMATION_MESSAGE);
 
-        // Map PATIENT -> USER for dashboard usage
-        String dashboardRole = roleNormalized.equals("PATIENT") ? "USER" : roleNormalized;
-        DashboardUI dash = new DashboardUI(dashboardRole);
+        // Decide dashboard based on the authenticated user's role
+        String dashboardRole = (actualRole == Role.PATIENT) ? "USER" : actualRole.name();
+        DashboardUI dash = new DashboardUI(dashboardRole, false, username); // pass username for header
         dash.setVisible(true);
         dispose();
     }
 
-    private String hashPassword(String pass) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(pass.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (Exception e) { return ""; }
+    // Allow launching directly for testing/demo
+    public static void main(String[] args) {
+        EventQueue.invokeLater(() -> {
+            LoginUI ui = new LoginUI();
+            ui.setVisible(true);
+        });
     }
 }

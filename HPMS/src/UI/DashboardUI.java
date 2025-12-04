@@ -13,15 +13,17 @@ public class DashboardUI extends JFrame {
     private static final long serialVersionUID = 1L;
     private JPanel contentPane;
     private JComponent dashboardPanel;
-    private JTextField globalSearchField;
-    private JButton clearSearchButton;
-    private JComboBox<String> roleSelector; // new role switcher
+    private JComboBox<String> roleSelector; // role switcher
+    private boolean allowRoleSwitch = true;
+    private String currentUsername;
 
     public static void main(String[] args) {
-        String role = "STAFF:REGISTRATION"; // example launch
+        String role = (args != null && args.length > 0) ? args[0] : "USER";
+        String username = (args != null && args.length > 1) ? args[1] : "";
+        boolean allowSwitch = false;
         EventQueue.invokeLater(() -> {
             try {
-                DashboardUI frame = new DashboardUI(role);
+                DashboardUI frame = new DashboardUI(role, allowSwitch, username);
                 frame.setVisible(true);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -29,7 +31,11 @@ public class DashboardUI extends JFrame {
         });
     }
 
-    public DashboardUI(String role) {
+    public DashboardUI(String role) { this(role, true, null); }
+    public DashboardUI(String role, boolean allowRoleSwitch) { this(role, allowRoleSwitch, null); }
+    public DashboardUI(String role, boolean allowRoleSwitch, String username) {
+        this.allowRoleSwitch = allowRoleSwitch;
+        this.currentUsername = username;
         setTitle("HPMS Dashboard");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setBounds(100, 100, 1099, 750);
@@ -66,6 +72,13 @@ public class DashboardUI extends JFrame {
         roleLabel.setFont(new Font("Arial", Font.BOLD, 14));
         rightPanel.add(roleLabel);
 
+        if (currentUsername != null && !currentUsername.isBlank()) {
+            JLabel userLabel = new JLabel("Logged in: " + currentUsername);
+            userLabel.setForeground(Color.WHITE);
+            userLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+            rightPanel.add(userLabel);
+        }
+
         JButton logoutButton = new JButton("Logout");
         logoutButton.setToolTipText("Click to logout and return to login");
         logoutButton.addActionListener(e -> {
@@ -78,98 +91,64 @@ public class DashboardUI extends JFrame {
             );
             if (result == JOptionPane.YES_OPTION) {
                 dispose();
+                EventQueue.invokeLater(() -> new LoginUI().setVisible(true));
             }
         });
         rightPanel.add(logoutButton);
 
         // ROLE SWITCHER -------------------------------------------------
-        roleSelector = new JComboBox<>(new String[]{"ADMIN","DOCTOR","USER","STAFF","STAFF:REGISTRATION","STAFF:BILLING","STAFF:LAB"});
-        roleSelector.setSelectedItem(role != null ? role.toUpperCase() : "USER");
-        roleSelector.setToolTipText("Switch current role dashboard");
-        roleSelector.addActionListener(e -> setRole((String) roleSelector.getSelectedItem()));
-        rightPanel.add(new JLabel("Role:"));
-        rightPanel.add(roleSelector);
-
-        // GLOBAL SEARCH COMPONENTS -------------------------------------
-        globalSearchField = new JTextField(18);
-        globalSearchField.setToolTipText("Global search across visible dashboard tables");
-        globalSearchField.addActionListener(e -> performGlobalSearch());
-        clearSearchButton = new JButton("Clear");
-        clearSearchButton.setToolTipText("Clear global search filter");
-        clearSearchButton.addActionListener(e -> {
-            globalSearchField.setText("");
-            if (dashboardPanel instanceof GlobalSearchable gs) {
-                gs.clearGlobalSearch(); gs.clearGlobalFilter();
-            }
-        });
-        rightPanel.add(new JLabel("Search:"));
-        rightPanel.add(globalSearchField);
-        rightPanel.add(clearSearchButton);
+        if (allowRoleSwitch) {
+            roleSelector = new JComboBox<>(new String[]{"ADMIN","DOCTOR","USER","STAFF","STAFF:REGISTRATION","STAFF:BILLING","STAFF:LAB"});
+            roleSelector.setSelectedItem(role != null ? role.toUpperCase() : "USER");
+            roleSelector.setToolTipText("Switch current role dashboard");
+            roleSelector.addActionListener(e -> setRole((String) roleSelector.getSelectedItem()));
+            rightPanel.add(new JLabel("Role:"));
+            rightPanel.add(roleSelector);
+        }
 
         panel.add(rightPanel, BorderLayout.EAST);
 
         // MAIN CENTER PANEL - Role-based dashboard
         JPanel dashboardPanel = createDashboardPanel(role);
         this.dashboardPanel = dashboardPanel;
-        updateSearchAvailability();
         contentPane.add(dashboardPanel, BorderLayout.CENTER);
     }
 
-    // Extracted method for creating role-based panels
+    // Create role-based panels and pass currentUsername
     private JPanel createDashboardPanel(String role) {
         if (role == null) {
             JOptionPane.showMessageDialog(this, "Invalid role. Please log in again.", "Error", JOptionPane.ERROR_MESSAGE);
-            return new JPanel();  // Default empty panel
+            return new JPanel();
         }
         String upper = role.toUpperCase();
         switch (upper) {
             case "ADMIN":
-                return new AdminDashboardPanel();
+                return new AdminDashboardPanel(currentUsername);
             case "DOCTOR":
-                return new DoctorDashboardPanel();
+                return new DoctorDashboardPanel(currentUsername);
             case "STAFF":
-                return new StaffDashboardPanel();
+                return new StaffDashboardPanel(currentUsername);
             case "USER":
-                return new PatientDashboardPanel();
+                return new PatientDashboardPanel(currentUsername);
             default:
-                // Support STAFF sub-roles like STAFF:REGISTRATION
                 if (upper.startsWith("STAFF:")) {
                     String subRole = upper.substring("STAFF:".length());
-                    return new StaffDashboardPanel(subRole);
+                    return new StaffDashboardPanel(subRole, currentUsername);
                 }
                 JOptionPane.showMessageDialog(this, "Unknown role: " + role + ". Defaulting to basic view.", "Warning", JOptionPane.WARNING_MESSAGE);
-                return new JPanel();  // Default panel
-        }
-    }
-
-    private void performGlobalSearch() {
-        String q = globalSearchField.getText();
-        if (dashboardPanel instanceof GlobalSearchable gs) {
-            gs.applyGlobalSearch(q);
-        }
-    }
-    private void updateSearchAvailability() {
-        boolean enabled = dashboardPanel instanceof GlobalSearchable;
-        globalSearchField.setEnabled(enabled);
-        clearSearchButton.setEnabled(enabled);
-        if (!enabled) {
-            globalSearchField.setText("Not supported for this view");
+                return new JPanel();
         }
     }
 
     // NEW: change role at runtime --------------------------------------
     public void setRole(String role) {
         if (role == null) return;
-        // Remove old panel
         if (dashboardPanel != null) {
             getContentPane().remove(dashboardPanel);
         }
-        // Create new panel
         JPanel newPanel = createDashboardPanel(role);
         this.dashboardPanel = newPanel;
-        // Add and refresh
         getContentPane().add(newPanel, BorderLayout.CENTER);
-        updateSearchAvailability();
         revalidate();
         repaint();
     }

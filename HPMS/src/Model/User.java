@@ -47,7 +47,7 @@ public class User {
         this.passwordHash = passwordHash; 
         }
 
-    void setRole(Role role) { 
+    public void setRole(Role role) { 
         this.role = role; 
         }
 

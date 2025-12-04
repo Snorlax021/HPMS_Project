@@ -53,8 +53,13 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     // Global search/filter state
     private String globalSearchQuery;
     private final Map<String, Map<String,String>> columnFilters = new HashMap<>();
+    private final String currentUsername;
+    // NEW: username label reference to control visibility
+    private JLabel userTagLabel;
 
-    public DoctorDashboardPanel() {
+    public DoctorDashboardPanel() { this(null); }
+    public DoctorDashboardPanel(String username) {
+        this.currentUsername = username;
         setBackground(COLOR_BG);
         setBorder(new EmptyBorder(8, 8, 8, 8));
         setLayout(new BorderLayout(8, 8));
@@ -73,20 +78,25 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         header.setBackground(Color.WHITE);
         header.setPreferredSize(new Dimension(0, 55));
 
-        JLabel title = new JLabel("Doctor Dashboard", SwingConstants.LEFT);
+        // Left: title only — username removed
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        left.setOpaque(false);
+        // Do not add username label
+        userTagLabel = null;
+
+        JLabel title = new JLabel("Doctor Dashboard");
         title.setFont(FONT_TITLE);
-        title.setBorder(new EmptyBorder(0, 16, 0, 0));
         title.setForeground(COLOR_PRIMARY.darker());
+        left.add(title);
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
         right.setOpaque(false);
-
         JButton btnRefresh = new JButton("Refresh");
         styleSecondaryButton(btnRefresh);
         btnRefresh.addActionListener(e -> JOptionPane.showMessageDialog(this, "Data refreshed (placeholder)", "Info", JOptionPane.INFORMATION_MESSAGE));
         right.add(btnRefresh);
 
-        header.add(title, BorderLayout.WEST);
+        header.add(left, BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
         return header;
     }
@@ -98,16 +108,18 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         sideNavPanel.setBorder(new LineBorder(COLOR_BORDER));
         sideNavPanel.setPreferredSize(new Dimension(190, 0));
 
-        btnDashboard = createNavButton("Dashboard", "DASHBOARD");
+        btnDashboard = createNavButton("Summary", "DASHBOARD");
         btnPatients = createNavButton("Patients", "PATIENTS");
         btnReports = createNavButton("Reports", "REPORTS");
-        btnSummary = createNavButton("Summary", "SUMMARY");
+        //btnSummary = createNavButton("Summary", "SUMMARY");
+        JButton btnGuide = createNavButton("User Guide", "GUIDE");
 
         sideNavPanel.add(Box.createVerticalStrut(6));
         sideNavPanel.add(btnDashboard);
         sideNavPanel.add(btnPatients);
         sideNavPanel.add(btnReports);
         sideNavPanel.add(btnSummary);
+        sideNavPanel.add(btnGuide);
         sideNavPanel.add(Box.createVerticalGlue());
         return sideNavPanel;
     }
@@ -137,6 +149,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         activeButton = button;
         activeButton.setBackground(COLOR_ACTIVE);
         activeButton.setForeground(Color.WHITE);
+        // Username not displayed anymore
         cardLayout.show(mainContentPanel, card);
     }
 
@@ -150,6 +163,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.add(buildPatientsPanel(), "PATIENTS");
         mainContentPanel.add(buildReportsPanel(), "REPORTS");
         mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
+        mainContentPanel.add(buildGuidePanel(), "GUIDE");
         return mainContentPanel;
     }
 
@@ -314,6 +328,35 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
         root.add(new JScrollPane(area), BorderLayout.CENTER);
+        return root;
+    }
+
+    // USER GUIDE PANEL ------------------------------------------------
+    private JPanel buildGuidePanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JLabel header = new JLabel("User Guide", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
+
+        JTextArea area = new JTextArea();
+        area.setFont(FONT_NORMAL);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setText(
+            "Welcome to the Doctor User Guide.\n\n" +
+            "Navigation:\n- Use the left sidebar to access Dashboard, Patients, Reports, Summary, and this Guide.\n\n" +
+            "Patients:\n- Add, view, delete patients; search with the top search bar.\n- Assign appointments using the toolbar.\n\n" +
+            "Reports:\n- Review report history and export as CSV/Excel/PDF.\n\n" +
+            "Summary:\n- See overview metrics.\n\n" +
+            "Tips:\n- Use search to filter tables.\n- Refresh button reloads data (placeholder).\n- Validate dates when assigning appointments.");
+        root.add(new JScrollPane(area), BorderLayout.CENTER);
+
         return root;
     }
 

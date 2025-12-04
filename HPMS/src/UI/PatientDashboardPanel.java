@@ -1,5 +1,7 @@
 package UI;
 
+import Service.PatientService;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
@@ -17,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -62,7 +65,36 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
     // Missing profileArea field re-added
     private JTextArea profileArea;
 
-    public PatientDashboardPanel() {
+    private final String currentUsername;
+    // NEW: username label reference to control visibility
+    private JLabel userTagLabel;
+
+    // Simple in-memory profile model to retain values (can be replaced by Service/Model integration)
+    private static class ProfileData {
+        String name = "";
+        String age = "";
+        String bloodType = "";
+        String gender = "";
+        String address = "";
+        String doctor = "";
+        String email = "";
+        String phone = "";
+    }
+    // Remove static cache and use service-backed profile
+    // private static final ConcurrentHashMap<String, ProfileData> PROFILE_CACHE = new ConcurrentHashMap<>();
+    private ProfileData profileData;
+    private final PatientService patientService = PatientService.getInstance();
+
+    public PatientDashboardPanel(String username) {
+        this.currentUsername = username;
+        // Load from service profile store
+        if (username != null && !username.isBlank()) {
+            PatientService.PatientProfile p = patientService.getProfileByUsername(username);
+            profileData = fromServiceProfile(p);
+        } else {
+            profileData = new ProfileData();
+        }
+        // ...existing code...
         setBackground(COLOR_BG);
         setBorder(new EmptyBorder(8, 8, 8, 8));
         setLayout(new BorderLayout(8, 8));
@@ -78,10 +110,17 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         header.setBackground(Color.WHITE);
         header.setBorder(new LineBorder(COLOR_BORDER));
         header.setPreferredSize(new Dimension(0, 55));
-        JLabel title = new JLabel("Patient Dashboard", SwingConstants.LEFT);
+
+        // Left: title only — username removed
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        left.setOpaque(false);
+        // Do not add username label
+        userTagLabel = null;
+
+        JLabel title = new JLabel("Patient Dashboard");
         title.setFont(FONT_TITLE);
         title.setForeground(COLOR_PRIMARY.darker());
-        title.setBorder(new EmptyBorder(0, 16, 0, 0));
+        left.add(title);
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
         right.setOpaque(false);
@@ -90,7 +129,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         btnHelp.addActionListener(e -> JOptionPane.showMessageDialog(this, "Support placeholder.", "Help", JOptionPane.INFORMATION_MESSAGE));
         right.add(btnHelp);
 
-        header.add(title, BorderLayout.WEST);
+        header.add(left, BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
         return header;
     }
@@ -150,6 +189,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         activeButton = button;
         activeButton.setBackground(COLOR_ACTIVE);
         activeButton.setForeground(Color.WHITE);
+        // Username not displayed anymore
         cardLayout.show(mainContentPanel, card);
     }
 
@@ -224,14 +264,17 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
         root.add(sectionHeader("My Profile"), BorderLayout.NORTH);
-        profileArea = new JTextArea("PERSONAL INFO\nName: \nAge: \nBlood Type: \nGender: \nAddress: \nDoctor: \n\nCONTACT INFO\nEmail: \nPhone: \n");
+        profileArea = new JTextArea();
         profileArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        profileArea.setEditable(false);
+        refreshProfileAreaFromModel();
         root.add(new JScrollPane(profileArea), BorderLayout.CENTER);
         JButton btnEdit = new JButton("Edit Profile");
         styleSecondaryButton(btnEdit);
-        btnEdit.addActionListener(e -> JOptionPane.showMessageDialog(this, "Profile edit dialog placeholder."));
+        btnEdit.addActionListener(e -> openEditProfileDialog());
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        footer.setOpaque(false); footer.add(btnEdit);
+        footer.setOpaque(false);
+        footer.add(btnEdit);
         root.add(footer, BorderLayout.SOUTH);
         return root;
     }
@@ -261,7 +304,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
 
         String[] cols = {"Date", "Time", "Doctor", "Type"};
         Object[][] data = {{"2025-01-15", "09:00", "Dr. Smith", "Follow-up"}, {"2025-01-20", "14:30", "Dr. Adams", "Consultation"}};
-        appointmentsTable = new JTable(new DefaultTableModel(data, cols));
+        appointmentsTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
 
         // Add search listener
         searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -272,11 +315,10 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(new JScrollPane(appointmentsTable), BorderLayout.CENTER);
 
+        // Remove mutating toolbar actions, keep only View
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
-        styleToolbarButton(toolbar, "Schedule", this::openScheduleDialog);
         styleToolbarButton(toolbar, "View", this::openViewAppointment);
-        styleToolbarButton(toolbar, "Cancel", this::openCancelAppointment);
         root.add(toolbar, BorderLayout.SOUTH);
         return root;
     }
@@ -317,11 +359,15 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(topPanel, BorderLayout.NORTH);
 
-        String[] cols = {"Date", "Description", "Amount"};
-        Object[][] data = {{"2025-01-05", "Consultation", "$50"}, {"2025-01-07", "Lab Test", "$75"}};
-        billsTable = new JTable(new DefaultTableModel(data, cols));
+        // Updated columns: add Status next to Amount
+        String[] cols = {"Date", "Description", "Amount", "Status"};
+        Object[][] data = {
+            {"2025-01-05", "Consultation", "$50", "Paid"},
+            {"2025-01-07", "Lab Test", "$75", "Unpaid"}
+        };
+        billsTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
 
-        // Add search listener
+        // Add search listener (include Status column index 3)
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { filterBillsTable(searchField.getText()); }
             public void removeUpdate(DocumentEvent e) { filterBillsTable(searchField.getText()); }
@@ -329,12 +375,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         });
 
         root.add(new JScrollPane(billsTable), BorderLayout.CENTER);
-        JButton payBtn = new JButton("Pay Selected");
-        styleSecondaryButton(payBtn);
-        payBtn.addActionListener(e -> openPayBillDialog());
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        footer.setOpaque(false); footer.add(payBtn);
-        root.add(footer, BorderLayout.SOUTH);
+        // No footer actions in view-only mode
         return root;
     }
 
@@ -363,7 +404,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
 
         String[] cols = {"Date", "Test", "Status"};
         Object[][] data = {{"2025-01-02", "CBC", "Completed"}, {"2025-01-08", "X-Ray", "Pending"}};
-        labTable = new JTable(new DefaultTableModel(data, cols));
+        labTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
 
         // Add search listener
         searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -382,35 +423,101 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setOpaque(false);
         JLabel header = new JLabel("Hospital Services", SwingConstants.LEFT);
         header.setFont(FONT_SECTION);
         header.setForeground(COLOR_PRIMARY.darker());
         header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        topPanel.add(header, BorderLayout.NORTH);
+        root.add(header, BorderLayout.NORTH);
 
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchPanel.setOpaque(false);
-        searchPanel.add(new JLabel("Search Services:"));
-        JTextField searchField = new JTextField(20);
-        searchPanel.add(searchField);
-        topPanel.add(searchPanel, BorderLayout.SOUTH);
+        JPanel nav = new JPanel(new GridLayout(0, 2, 10, 10));
+        nav.setOpaque(false);
 
-        root.add(topPanel, BorderLayout.NORTH);
+        JButton btnSurgery = createNavButton("Surgery", "SERVICES");
+        JButton btnRadiology = createNavButton("Radiology", "SERVICES");
+        JButton btnPharmacy = createNavButton("Pharmacy", "SERVICES");
+        JButton btnPediatrics = createNavButton("Pediatrics", "SERVICES");
+        JButton btnCardiology = createNavButton("Cardiology", "SERVICES");
+        JButton btnOrthopedics = createNavButton("Orthopedics", "SERVICES");
 
-        String[] cols = {"Service", "Doctor", "Price"};
-        Object[][] data = {{"Consultation", "Dr. Smith", "$100"}, {"Surgery", "Dr. Adams", "$500"}, {"Lab Test", "Dr. Johnson", "$50"}, {"X-Ray", "Dr. Lee", "$75"}};
-        servicesTable = new JTable(new DefaultTableModel(data, cols));
+        java.util.List<JButton> categoryButtons = java.util.Arrays.asList(
+            btnSurgery, btnRadiology, btnPharmacy, btnPediatrics, btnCardiology, btnOrthopedics
+        );
+        for (JButton b : categoryButtons) nav.add(b);
 
-        // Add search listener
-        searchField.getDocument().addDocumentListener(new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) { filterServicesTable(searchField.getText()); }
-            public void removeUpdate(DocumentEvent e) { filterServicesTable(searchField.getText()); }
-            public void changedUpdate(DocumentEvent e) { filterServicesTable(searchField.getText()); }
-        });
+        JTextArea infoArea = new JTextArea();
+        infoArea.setEditable(false);
+        infoArea.setFont(FONT_NORMAL);
+        infoArea.setLineWrap(true);
+        infoArea.setWrapStyleWord(true);
+        JScrollPane infoScroll = new JScrollPane(infoArea);
 
-        root.add(new JScrollPane(servicesTable), BorderLayout.CENTER);
+        JPanel center = new JPanel(new GridLayout(1, 2, 16, 0));
+        center.setOpaque(false);
+        center.add(nav);
+        center.add(infoScroll);
+        root.add(center, BorderLayout.CENTER);
+
+        // Helper to set active highlight for service buttons
+        Runnable resetAll = () -> {
+            for (JButton b : categoryButtons) { b.setBackground(Color.WHITE); b.setForeground(Color.BLACK); }
+        };
+        java.util.function.Consumer<JButton> setActive = (btn) -> {
+            resetAll.run();
+            btn.setBackground(COLOR_ACTIVE);
+            btn.setForeground(Color.WHITE);
+        };
+
+        btnSurgery.addActionListener(e -> { setActive.accept(btnSurgery); infoArea.setText(
+            "Surgery Department\n\n" +
+            "Lead Surgeon: Dr. Anthony Rivera\n" +
+            "Specialties: General surgery, minimally invasive procedures.\n" +
+            "Availability: Mon-Fri, 7:00 AM - 6:00 PM.\n" +
+            "Contact: surgery@hospital.example"); });
+
+        btnRadiology.addActionListener(e -> { setActive.accept(btnRadiology); infoArea.setText(
+            "Radiology Department\n\n" +
+            "Chief Radiologist: Dr. Sophia Nguyen\n" +
+            "Services: X-Ray, MRI, CT, Ultrasound.\n" +
+            "Availability: Mon-Sat, 8:00 AM - 8:00 PM.\n" +
+            "Contact: radiology@hospital.example"); });
+
+        btnPharmacy.addActionListener(e -> { setActive.accept(btnPharmacy); infoArea.setText(
+            "Pharmacy\n\n" +
+            "Head Pharmacist: Mr. Daniel Perez, RPh\n" +
+            "Services: Prescriptions, medication counseling, refills.\n" +
+            "Availability: Mon-Sun, 9:00 AM - 9:00 PM.\n" +
+            "Contact: pharmacy@hospital.example"); });
+
+        btnPediatrics.addActionListener(e -> { setActive.accept(btnPediatrics); infoArea.setText(
+            "Pediatrics\n\n" +
+            "Attending Pediatrician: Dr. Emily Carter\n" +
+            "Services: Well-child visits, immunizations, acute care.\n" +
+            "Availability: Mon-Fri, 9:00 AM - 5:00 PM.\n" +
+            "Contact: pediatrics@hospital.example"); });
+
+        btnCardiology.addActionListener(e -> { setActive.accept(btnCardiology); infoArea.setText(
+            "Cardiology\n\n" +
+            "Consultant Cardiologist: Dr. Raj Patel\n" +
+            "Services: ECG, echocardiogram, stress tests, heart health.\n" +
+            "Availability: Mon-Fri, 8:00 AM - 4:00 PM.\n" +
+            "Contact: cardiology@hospital.example"); });
+
+        btnOrthopedics.addActionListener(e -> { setActive.accept(btnOrthopedics); infoArea.setText(
+            "Orthopedics\n\n" +
+            "Orthopedic Surgeon: Dr. Laura Kim\n" +
+            "Services: Bone/joint care, sports injuries, rehabilitation.\n" +
+            "Availability: Mon-Fri, 10:00 AM - 6:00 PM.\n" +
+            "Contact: ortho@hospital.example"); });
+
+        // Default selection
+        setActive.accept(btnSurgery);
+        infoArea.setText(
+            "Surgery Department\n\n" +
+            "Lead Surgeon: Dr. Anthony Rivera\n" +
+            "Specialties: General surgery, minimally invasive procedures.\n" +
+            "Availability: Mon-Fri, 7:00 AM - 6:00 PM.\n" +
+            "Contact: surgery@hospital.example");
+
         return root;
     }
 
@@ -455,28 +562,6 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
     }
 
     // DIALOG ACTIONS --------------------------------------------------
-    private void openScheduleDialog() {
-        JPanel panel = new JPanel(new GridLayout(3, 2, 8, 8));
-        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        panel.add(new JLabel("Date (YYYY-MM-DD):")); JTextField date = new JTextField(); panel.add(date);
-        panel.add(new JLabel("Time (HH:MM):")); JTextField time = new JTextField(); panel.add(time);
-        panel.add(new JLabel("Type:")); JComboBox<String> type = new JComboBox<>(new String[]{"Consultation", "Follow-up", "Procedure"}); panel.add(type);
-        int res = JOptionPane.showConfirmDialog(this, panel, "Schedule Appointment", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (res == JOptionPane.OK_OPTION) {
-            String dateStr = date.getText().trim();
-            if (dateStr.isEmpty()) { JOptionPane.showMessageDialog(this, "Date required.", "Warning", JOptionPane.WARNING_MESSAGE); return; }
-            java.time.LocalDate parsed;
-            try { parsed = java.time.LocalDate.parse(dateStr); } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Invalid date format. Use YYYY-MM-DD.", "Error", JOptionPane.ERROR_MESSAGE); return;
-            }
-            java.time.LocalDate today = java.time.LocalDate.now();
-            if (parsed.isBefore(today)) { JOptionPane.showMessageDialog(this, "You cannot schedule an appointment in the past.", "Error", JOptionPane.ERROR_MESSAGE); return; }
-            if (parsed.isAfter(today.plusYears(2))) { JOptionPane.showMessageDialog(this, "Date too far in the future.", "Error", JOptionPane.ERROR_MESSAGE); return; }
-            DefaultTableModel m = (DefaultTableModel) appointmentsTable.getModel();
-            m.addRow(new Object[]{parsed.toString(), time.getText().trim(), "Dr. Smith", type.getSelectedItem().toString()});
-            JOptionPane.showMessageDialog(this, "Appointment scheduled.");
-        }
-    }
     private void openViewAppointment() {
         int row = appointmentsTable.getSelectedRow();
         if (row == -1) { JOptionPane.showMessageDialog(this, "Select an appointment first."); return; }
@@ -484,20 +569,56 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         String info = String.format("Date: %s\nTime: %s\nDoctor: %s\nType: %s", m.getValueAt(row,0), m.getValueAt(row,1), m.getValueAt(row,2), m.getValueAt(row,3));
         JOptionPane.showMessageDialog(this, info, "Appointment Details", JOptionPane.INFORMATION_MESSAGE);
     }
-    private void openCancelAppointment() {
-        int row = appointmentsTable.getSelectedRow();
-        if (row == -1) { JOptionPane.showMessageDialog(this, "Select an appointment first."); return; }
-        int confirm = JOptionPane.showConfirmDialog(this, "Cancel this appointment?", "Confirm", JOptionPane.YES_NO_OPTION);
-        if (confirm == JOptionPane.YES_OPTION) {
-            ((DefaultTableModel) appointmentsTable.getModel()).removeRow(row);
-            JOptionPane.showMessageDialog(this, "Appointment canceled.");
+
+    private void openEditProfileDialog() {
+        JPanel panel = new JPanel(new GridLayout(8, 2, 8, 8));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        JTextField name = new JTextField(profileData.name);
+        JTextField age = new JTextField(profileData.age);
+        JTextField blood = new JTextField(profileData.bloodType);
+        JTextField gender = new JTextField(profileData.gender);
+        JTextField address = new JTextField(profileData.address);
+        JTextField doctor = new JTextField(profileData.doctor);
+        JTextField email = new JTextField(profileData.email);
+        JTextField phone = new JTextField(profileData.phone);
+        panel.add(new JLabel("Name:")); panel.add(name);
+        panel.add(new JLabel("Age:")); panel.add(age);
+        panel.add(new JLabel("Blood Type:")); panel.add(blood);
+        panel.add(new JLabel("Gender:")); panel.add(gender);
+        panel.add(new JLabel("Address:")); panel.add(address);
+        panel.add(new JLabel("Doctor:")); panel.add(doctor);
+        panel.add(new JLabel("Email:")); panel.add(email);
+        panel.add(new JLabel("Phone:")); panel.add(phone);
+        int res = JOptionPane.showConfirmDialog(this, panel, "Edit Profile", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (res == JOptionPane.OK_OPTION) {
+            // Update local model
+            profileData.name = name.getText().trim();
+            profileData.age = age.getText().trim();
+            profileData.bloodType = blood.getText().trim();
+            profileData.gender = gender.getText().trim();
+            profileData.address = address.getText().trim();
+            profileData.doctor = doctor.getText().trim();
+            profileData.email = email.getText().trim();
+            profileData.phone = phone.getText().trim();
+            // Save via service
+            if (currentUsername != null && !currentUsername.isBlank()) {
+                patientService.saveProfile(currentUsername, toServiceProfile(profileData));
+            }
+            refreshProfileAreaFromModel();
         }
     }
-    private void openPayBillDialog() {
-        int row = billsTable.getSelectedRow();
-        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a bill first."); return; }
-        int confirm = JOptionPane.showConfirmDialog(this, "Mark this bill as paid?", "Confirm", JOptionPane.YES_NO_OPTION);
-        if (confirm == JOptionPane.YES_OPTION) JOptionPane.showMessageDialog(this, "Bill paid (placeholder).");
+
+    private ProfileData fromServiceProfile(PatientService.PatientProfile p) {
+        ProfileData d = new ProfileData();
+        d.name = p.name; d.age = p.age; d.bloodType = p.bloodType; d.gender = p.gender;
+        d.address = p.address; d.doctor = p.doctor; d.email = p.email; d.phone = p.phone;
+        return d;
+    }
+    private PatientService.PatientProfile toServiceProfile(ProfileData d) {
+        PatientService.PatientProfile p = new PatientService.PatientProfile();
+        p.name = d.name; p.age = d.age; p.bloodType = d.bloodType; p.gender = d.gender;
+        p.address = d.address; p.doctor = d.doctor; p.email = d.email; p.phone = d.phone;
+        return p;
     }
 
     // PUBLIC UPDATE API -----------------------------------------------
@@ -568,7 +689,8 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         if (query == null || query.trim().isEmpty()) {
             sorter.setRowFilter(null);
         } else {
-            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1));
+            // Include Description (1) and Status (3) in filtering
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 3));
         }
     }
     // FILTERING LOGIC FOR LAB TABLE ---------------------------------
@@ -596,5 +718,20 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         } else {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 0, 1));
         }
+    }
+
+    // Renders profileArea text from profileData
+    private void refreshProfileAreaFromModel() {
+        String text = "PERSONAL INFO\n" +
+                "Name: " + profileData.name + "\n" +
+                "Age: " + profileData.age + "\n" +
+                "Blood Type: " + profileData.bloodType + "\n" +
+                "Gender: " + profileData.gender + "\n" +
+                "Address: " + profileData.address + "\n" +
+                "Doctor: " + profileData.doctor + "\n\n" +
+                "CONTACT INFO\n" +
+                "Email: " + profileData.email + "\n" +
+                "Phone: " + profileData.phone + "\n";
+        if (profileArea != null) profileArea.setText(text);
     }
 }
