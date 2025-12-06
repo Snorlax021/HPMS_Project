@@ -44,6 +44,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // CSRF protection is disabled for REST APIs using JWT tokens
+            // JWT tokens are stateless and stored in headers, not cookies
+            // This is a standard practice for stateless REST APIs
+            // For cookie-based authentication, CSRF protection should be enabled
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints (without /api prefix since it's in context path)
@@ -51,9 +55,11 @@ public class SecurityConfig {
                     "/auth/**",
                     "/api-docs/**",
                     "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/h2-console/**"
+                    "/swagger-ui.html"
                 ).permitAll()
+                // H2 Console - ONLY for development, should be disabled in production
+                // Consider removing this line or restricting to ADMIN role in production
+                .requestMatchers("/h2-console/**").permitAll()
                 // Admin only endpoints
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // Doctor endpoints
@@ -71,7 +77,7 @@ public class SecurityConfig {
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        // Allow H2 console frames (for development only)
+        // Allow H2 console frames (for development only - disable in production)
         http.headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
 
         return http.build();

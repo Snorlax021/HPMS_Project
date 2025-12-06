@@ -185,20 +185,36 @@ server.port=8080
 # Database
 spring.datasource.url=jdbc:h2:mem:hpms_db
 
-# JWT
-jwt.secret=your-secret-key
+# JWT - IMPORTANT: Use environment variables in production!
+# Example: export JWT_SECRET="your-long-secret-key-here"
+jwt.secret=${JWT_SECRET:hpms-secret-key-change-this-in-production-minimum-256-bits-required-for-hs256}
 jwt.expiration=86400000  # 24 hours
 
 # Security
 # Configure as needed for your environment
 ```
 
+### Production Configuration
+
+For production deployment, set these environment variables:
+
+```bash
+export JWT_SECRET="your-production-secret-key-minimum-256-bits"
+export SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5432/hpms_db"
+export SPRING_DATASOURCE_USERNAME="your-db-username"
+export SPRING_DATASOURCE_PASSWORD="your-db-password"
+export SPRING_H2_CONSOLE_ENABLED="false"
+```
+
 ## Security Notes
 
-1. **JWT Secret**: The default JWT secret should be changed in production
-2. **Passwords**: Default passwords are for development only
-3. **HTTPS**: Use HTTPS in production environments
-4. **Database**: Use a production database (PostgreSQL, MySQL) instead of H2
+1. **JWT Secret**: The default JWT secret should be changed in production to a strong, randomly generated key (minimum 256 bits)
+2. **Passwords**: Default passwords are for development only - change immediately in production
+3. **HTTPS**: Always use HTTPS in production environments to protect JWT tokens in transit
+4. **Database**: Use a production database (PostgreSQL, MySQL) instead of H2 in-memory database
+5. **CSRF Protection**: CSRF is disabled for this stateless REST API using JWT tokens. If implementing cookie-based authentication, enable CSRF protection
+6. **Rate Limiting**: Consider implementing rate limiting for authentication endpoints in production
+7. **Token Expiration**: JWT tokens expire after 24 hours. Implement refresh token mechanism for better UX
 
 ## Development
 

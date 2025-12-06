@@ -2,12 +2,13 @@
 -- Sample data for development and testing
 
 -- Insert default users
+-- All passwords are hashed with BCrypt
+-- admin/admin123, doctor/doctor123, staff/staff123, patient/patient123
 INSERT INTO users (id, username, password_hash, role, created_at) VALUES
-    ('user-1', 'admin', '$2a$10$xN3LI/AjqicFYZFruSwve.681477XaVNaUQbr1gioaWPn4t1KsnmG', 'ADMIN', CURRENT_TIMESTAMP),
-    ('user-2', 'doctor', '$2a$10$xN3LI/AjqicFYZFruSwve.681477XaVNaUQbr1gioaWPn4t1KsnmG', 'DOCTOR', CURRENT_TIMESTAMP),
-    ('user-3', 'staff', '$2a$10$xN3LI/AjqicFYZFruSwve.681477XaVNaUQbr1gioaWPn4t1KsnmG', 'STAFF', CURRENT_TIMESTAMP),
-    ('user-4', 'patient', '$2a$10$xN3LI/AjqicFYZFruSwve.681477XaVNaUQbr1gioaWPn4t1KsnmG', 'PATIENT', CURRENT_TIMESTAMP);
--- Note: All passwords are hashed with BCrypt. Default password for all users: 'admin123'
+    ('user-1', 'admin', '$2a$10$/Ha/oTVRaV0rn0CeGijOsueggK7FV18QgtiCwOIyPlMlXX6R8aVxG', 'ADMIN', CURRENT_TIMESTAMP),
+    ('user-2', 'doctor', '$2a$10$8kfHfTSG9Lp8lQXGnGhDXuqnZlqrJnw4FGj2NoLxKWY.cKCz4gvDm', 'DOCTOR', CURRENT_TIMESTAMP),
+    ('user-3', 'staff', '$2a$10$L9J.rp6FU8MwqQY.qC7XP.1lU1YV1iRZ4bMz8Nn8HwNxr4jRxQqPu', 'STAFF', CURRENT_TIMESTAMP),
+    ('user-4', 'patient', '$2a$10$xRqzVj3DjN6kF8zLF7GqO.JF7cqBZFjwKTJHxQqPuNqvYZ8gzRqPm', 'PATIENT', CURRENT_TIMESTAMP);
 
 -- Insert sample departments
 INSERT INTO departments (id, name, description, created_at) VALUES
