@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
  * - POST /api/auth/login - Authenticate user and generate JWT token
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 public class AuthController {
 
     @Autowired

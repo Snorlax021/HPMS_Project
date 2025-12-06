@@ -7,9 +7,9 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_username (username)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_username ON users(username);
 
 -- Patients table
 CREATE TABLE IF NOT EXISTS patients (
@@ -21,10 +21,10 @@ CREATE TABLE IF NOT EXISTS patients (
     phone VARCHAR(20),
     email VARCHAR(100),
     address VARCHAR(500),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_name (last_name, first_name),
-    INDEX idx_email (email)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_patient_name ON patients(last_name, first_name);
+CREATE INDEX IF NOT EXISTS idx_patient_email ON patients(email);
 
 -- Doctors table
 CREATE TABLE IF NOT EXISTS doctors (
@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS doctors (
     license_number VARCHAR(50),
     phone VARCHAR(20),
     email VARCHAR(100),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_specialization (specialization)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_doctor_specialization ON doctors(specialization);
 
 -- Departments table
 CREATE TABLE IF NOT EXISTS departments (
@@ -56,11 +56,11 @@ CREATE TABLE IF NOT EXISTS appointments (
     reason VARCHAR(500),
     status VARCHAR(50) NOT NULL DEFAULT 'SCHEDULED',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    INDEX idx_patient (patient_id),
-    INDEX idx_scheduled (scheduled_at),
-    INDEX idx_status (status)
+    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_appointment_patient ON appointments(patient_id);
+CREATE INDEX IF NOT EXISTS idx_appointment_scheduled ON appointments(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_appointment_status ON appointments(status);
 
 -- Visits table
 CREATE TABLE IF NOT EXISTS visits (
@@ -72,10 +72,10 @@ CREATE TABLE IF NOT EXISTS visits (
     prescription VARCHAR(1000),
     notes VARCHAR(2000),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    INDEX idx_patient (patient_id),
-    INDEX idx_visit_date (visit_date)
+    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_visit_patient ON visits(patient_id);
+CREATE INDEX IF NOT EXISTS idx_visit_date ON visits(visit_date);
 
 -- Billing table
 CREATE TABLE IF NOT EXISTS billing (
@@ -86,10 +86,10 @@ CREATE TABLE IF NOT EXISTS billing (
     status VARCHAR(50) NOT NULL DEFAULT 'UNPAID',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     paid_at TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    INDEX idx_patient (patient_id),
-    INDEX idx_status (status)
+    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_billing_patient ON billing(patient_id);
+CREATE INDEX IF NOT EXISTS idx_billing_status ON billing(status);
 
 -- Insurance Policies table
 CREATE TABLE IF NOT EXISTS insurance_policies (
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS insurance_policies (
     start_date DATE NOT NULL,
     end_date DATE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    INDEX idx_patient (patient_id),
-    INDEX idx_policy_number (policy_number)
+    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_insurance_patient ON insurance_policies(patient_id);
+CREATE INDEX IF NOT EXISTS idx_insurance_policy_number ON insurance_policies(policy_number);

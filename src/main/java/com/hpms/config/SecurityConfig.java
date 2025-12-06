@@ -46,22 +46,22 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints
+                // Public endpoints (without /api prefix since it's in context path)
                 .requestMatchers(
-                    "/api/auth/**",
+                    "/auth/**",
                     "/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/h2-console/**"
                 ).permitAll()
                 // Admin only endpoints
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/admin/**").hasRole("ADMIN")
                 // Doctor endpoints
-                .requestMatchers("/api/doctor/**").hasAnyRole("ADMIN", "DOCTOR")
+                .requestMatchers("/doctor/**").hasAnyRole("ADMIN", "DOCTOR")
                 // Staff endpoints
-                .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
+                .requestMatchers("/staff/**").hasAnyRole("ADMIN", "STAFF")
                 // Patient endpoints
-                .requestMatchers("/api/patient/**").hasAnyRole("ADMIN", "PATIENT")
+                .requestMatchers("/patient/**").hasAnyRole("ADMIN", "PATIENT")
                 // All other requests require authentication
                 .anyRequest().authenticated()
             )
