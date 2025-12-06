@@ -123,6 +123,15 @@ public class UserService {
         return false;
     }
 
+    // Link a user to a patient by username. Returns true if user exists and was updated.
+    public boolean linkUserToPatient(String username, String patientId) {
+        if (username == null || patientId == null) return false;
+        User u = usersByUsername.get(username.trim().toLowerCase());
+        if (u == null) return false;
+        u.setLinkedPatientId(patientId);
+        return true;
+    }
+
     // Simple password policy: minimum length and at least one digit and one letter.
     private void validatePassword(char[] password) {
         if (password == null || password.length < 8) {

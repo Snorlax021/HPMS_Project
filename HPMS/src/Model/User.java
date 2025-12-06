@@ -13,6 +13,8 @@ public class User {
     private volatile String passwordHash; // mutable through service
     private volatile Role role;
     private final Instant createdAt;
+    // New: optional linkage to domain entities (patient/doctor). For now, only patient link is used.
+    private volatile String linkedPatientId;
 
     public User(String username, String passwordHash, Role role) {
         this.id = UUID.randomUUID().toString();
@@ -42,6 +44,14 @@ public class User {
         return createdAt; 
         }
 
+    // New: linked patient accessor
+    public String getLinkedPatientId() {
+        return linkedPatientId;
+    }
+    public void setLinkedPatientId(String linkedPatientId) {
+        this.linkedPatientId = linkedPatientId;
+    }
+
     // Package-private setters used by UserService
     public void setPasswordHash(String passwordHash) { 
         this.passwordHash = passwordHash; 
@@ -57,6 +67,7 @@ public class User {
             "id='" + id + '\'' +
             ", username='" + username + '\'' +
             ", role=" + role +
+            ", linkedPatientId=" + linkedPatientId +
             ", createdAt=" + createdAt +
             '}';
     }

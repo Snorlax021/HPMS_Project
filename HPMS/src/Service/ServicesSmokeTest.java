@@ -11,6 +11,9 @@ public class ServicesSmokeTest {
         PatientService ps = new PatientService();
         Patient p = ps.createPatient("Jane", "Doe", LocalDate.of(1990, 1, 1), "F", "1234567890", "jane@example.com", "123 St");
         System.out.println("Created patient id=" + p.getId());
+        ps.getProvisionedAccountForPatient(p.getId()).ifPresent(acc -> {
+            System.out.println("Auto-provisioned account -> username=" + acc.username + ", tempPassword=" + acc.temporaryPassword);
+        });
 
         // Billing service
         BillingService bs = new BillingService();

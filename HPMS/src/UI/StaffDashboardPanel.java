@@ -16,6 +16,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
+import Service.PatientService;
+import Model.Patient;
+import java.time.LocalDate;
+import java.time.Period;
 
 public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -250,8 +254,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(topPanel, BorderLayout.NORTH);
 
-        String[] cols = {"ID", "Name", "Age", "Gender", "Status"};
-        Object[][] data = {{1, "John Doe", 45, "M", "Active"}, {2, "Jane Smith", 29, "F", "Inactive"}};
+        // Removed ID column
+        String[] cols = {"Name", "Age", "Gender", "Status"};
+        Object[][] data = {{"John Doe", 45, "M", "Active"}, {"Jane Smith", 29, "F", "Inactive"}};
         patientRegTable = new JTable(new DefaultTableModel(data, cols));
 
         // Add search listener
@@ -490,28 +495,65 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
     // DIALOG METHODS (Patient Registration)
     private void openAddPatientDialog() {
-        JPanel panel = new JPanel(new GridLayout(5,2,8,8)); panel.setBorder(new EmptyBorder(10,10,10,10));
-        JTextField name = field(panel, "Name:"); JTextField age = field(panel, "Age:"); JTextField gender = field(panel, "Gender:"); JTextField status = field(panel, "Status:");
-        field(panel, "Notes:"); // placeholder unused
-        int r = showDialog(panel, "Add Patient");
+        JPanel panel = new JPanel(new GridLayout(7,2,8,8));
+        panel.setBorder(new EmptyBorder(10,10,10,10));
+        JTextField firstName = field(panel, "First Name:");
+        JTextField lastName = field(panel, "Last Name:");
+        JTextField dobField = field(panel, "DOB (YYYY-MM-DD):");
+        JTextField gender = field(panel, "Gender:");
+        JTextField phone = field(panel, "Phone:");
+        JTextField email = field(panel, "Email:");
+        JTextField address = field(panel, "Address:");
+        int r = showDialog(panel, "Register New Patient");
         if (r == JOptionPane.OK_OPTION) {
-            if (!name.getText().isEmpty()) {
-                DefaultTableModel m = (DefaultTableModel) patientRegTable.getModel();
-                m.addRow(new Object[]{m.getRowCount()+1, name.getText(), parseIntSafe(age.getText()), gender.getText(), status.getText()});
-            } else warn("Name required");
+            String fn = firstName.getText().trim();
+            String ln = lastName.getText().trim();
+            if (fn.isEmpty() || ln.isEmpty()) { warn("First and last name are required"); return; }
+            LocalDate dob = null;
+            String dobStr = dobField.getText().trim();
+            if (!dobStr.isEmpty()) {
+                try { dob = LocalDate.parse(dobStr); }
+                catch (Exception ex) { warn("DOB format should be YYYY-MM-DD"); return; }
+            }
+            PatientService ps = PatientService.getInstance();
+            Patient p = ps.createPatient(fn, ln, dob, gender.getText().trim(), phone.getText().trim(), email.getText().trim(), address.getText().trim());
+            // Update table view (no ID column)
+            int age = 0;
+            if (dob != null) {
+                try { age = Math.max(0, Period.between(dob, LocalDate.now()).getYears()); } catch (Exception ignored) {}
+            }
+            DefaultTableModel m = (DefaultTableModel) patientRegTable.getModel();
+            m.addRow(new Object[]{p.getFirstName() + " " + p.getLastName(), age, p.getGender(), "Active"});
+
+            // Show provisioned credentials
+            ps.getProvisionedAccountForPatient(p.getId()).ifPresentOrElse(acc -> {
+                JOptionPane.showMessageDialog(this,
+                    "Patient account has been created.\n\n" +
+                    "Username: " + acc.username + "\n" +
+                    "Temporary Password: " + acc.temporaryPassword + "\n\n" +
+                    "Please share these with the patient and ask them to change the password after first login.",
+                    "Account Created",
+                    JOptionPane.INFORMATION_MESSAGE);
+            }, () -> {
+                JOptionPane.showMessageDialog(this,
+                    "Patient registered, but account creation failed. You can create an account manually in the Users section.",
+                    "Account Not Created",
+                    JOptionPane.WARNING_MESSAGE);
+            });
         }
     }
     private void openViewPatientDialog() {
         int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}
         DefaultTableModel m=(DefaultTableModel)patientRegTable.getModel();
-        info(String.format("ID: %s\nName: %s\nAge: %s\nGender: %s\nStatus: %s",m.getValueAt(row,0),m.getValueAt(row,1),m.getValueAt(row,2),m.getValueAt(row,3),m.getValueAt(row,4)));
+        info(String.format("Name: %s\nAge: %s\nGender: %s\nStatus: %s",
+            m.getValueAt(row,0),m.getValueAt(row,1),m.getValueAt(row,2),m.getValueAt(row,3)));
     }
     private void openDeactivatePatientDialog() {
         int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}
-        int c = confirm("Deactivate this patient?"); if (c==JOptionPane.YES_OPTION){ ((DefaultTableModel)patientRegTable.getModel()).setValueAt("Inactive", row, 4); info("Patient deactivated."); }
+        int c = confirm("Deactivate this patient?"); if (c==JOptionPane.YES_OPTION){ ((DefaultTableModel)patientRegTable.getModel()).setValueAt("Inactive", row, 3); info("Patient deactivated."); }
     }
 
-    // Medical Records dialogs
+    // MEDICAL RECORDS DIALOGS ----------------------------------------
     private void openAddMedicalRecordDialog() {
         JPanel p=new JPanel(new GridLayout(4,2,8,8)); p.setBorder(new EmptyBorder(10,10,10,10));
         JTextField patient=field(p,"Patient:"); JTextField type=field(p,"Type:"); JTextField notes=field(p,"Notes:"); field(p,"Extra:");
@@ -525,18 +567,18 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         int r=medicalRecordTable.getSelectedRow(); if(r==-1){warn("Select a record first"); return;} if(confirm("Delete this record?")==JOptionPane.YES_OPTION){ ((DefaultTableModel)medicalRecordTable.getModel()).removeRow(r); info("Record deleted."); }
     }
 
-    // Billing dialogs
+    // BILLING DIALOGS ------------------------------------------------
     private void openExportBillingDialog() { info("Export billing (placeholder)"); }
     private void openMarkPaidDialog() {
         int r=billingTable.getSelectedRow(); if(r==-1){warn("Select a bill first"); return;} ((DefaultTableModel)billingTable.getModel()).setValueAt("Paid", r, 4); info("Marked as paid.");
     }
 
-    // Lab dialogs
+    // LAB DIALOGS -----------------------------------------------------
     private void openAddLabTestDialog() { JPanel p=new JPanel(new GridLayout(3,2,8,8)); p.setBorder(new EmptyBorder(10,10,10,10)); JTextField patient=field(p,"Patient:"); JTextField test=field(p,"Test:"); field(p,"Notes:"); if(showDialog(p,"Add Lab Test")==JOptionPane.OK_OPTION){ if(!patient.getText().isEmpty()){ DefaultTableModel m=(DefaultTableModel)labTable.getModel(); m.addRow(new Object[]{m.getRowCount()+501, patient.getText(), test.getText(), "Pending"}); info("Lab test added."); } else warn("Patient required"); } }
     private void openUpdateLabTestDialog() { int r=labTable.getSelectedRow(); if(r==-1){warn("Select test first"); return;} ((DefaultTableModel)labTable.getModel()).setValueAt("In Progress", r, 3); info("Status updated."); }
     private void openCompleteLabTestDialog() { int r=labTable.getSelectedRow(); if(r==-1){warn("Select test first"); return;} ((DefaultTableModel)labTable.getModel()).setValueAt("Completed", r, 3); info("Test completed."); }
 
-    // Admission dialogs
+    // ADMISSION DIALOGS ----------------------------------------------
     private void openAdmitPatientDialog() { JPanel p=new JPanel(new GridLayout(3,2,8,8)); p.setBorder(new EmptyBorder(10,10,10,10)); JTextField patient=field(p,"Patient:"); JTextField room=field(p,"Room:"); field(p,"Notes:"); if(showDialog(p,"Admit Patient")==JOptionPane.OK_OPTION){ if(!patient.getText().isEmpty()){ DefaultTableModel m=(DefaultTableModel)admissionTable.getModel(); m.addRow(new Object[]{m.getRowCount()+801, patient.getText(), room.getText(), "Admitted"}); info("Patient admitted."); } else warn("Patient required"); } }
     private void openDischargePatientDialog() { int r=admissionTable.getSelectedRow(); if(r==-1){warn("Select admission first"); return;} ((DefaultTableModel)admissionTable.getModel()).setValueAt("Discharged", r, 3); info("Patient discharged."); }
     private void openTransferPatientDialog() { int r=admissionTable.getSelectedRow(); if(r==-1){warn("Select admission first"); return;} ((DefaultTableModel)admissionTable.getModel()).setValueAt("Transferred", r, 3); info("Patient transferred."); }
@@ -561,6 +603,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     public JTable getLabTable(){ return labTable; }
     public JTable getAdmissionTable(){ return admissionTable; }
 
+    // GlobalSearchable implementation --------------------------------
     @Override
     public Map<String, JTable> getSearchableTables() {
         Map<String, JTable> map = new LinkedHashMap<>();
@@ -598,6 +641,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
     // PATIENT REGISTRATION FILTERING ----------------------------------
     private void filterPatientRegTable(String query) {
+        @SuppressWarnings("unchecked")
         TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) patientRegTable.getRowSorter();
         if (sorter == null) {
             sorter = new TableRowSorter<>(patientRegTable.getModel());
@@ -606,10 +650,13 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         if (query == null || query.trim().isEmpty()) {
             sorter.setRowFilter(null);
         } else {
-            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 3, 4));
+            // Search across Name (0), Gender (2), Status (3)
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 0, 2, 3));
         }
     }
+
     private void filterMedicalTable(String query) {
+        @SuppressWarnings("unchecked")
         TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) medicalRecordTable.getRowSorter();
         if (sorter == null) {
             sorter = new TableRowSorter<>(medicalRecordTable.getModel());
@@ -621,7 +668,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
         }
     }
+
     private void filterBillingTable(String query) {
+        @SuppressWarnings("unchecked")
         TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) billingTable.getRowSorter();
         if (sorter == null) {
             sorter = new TableRowSorter<>(billingTable.getModel());
@@ -633,7 +682,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 3, 4));
         }
     }
+
     private void filterLabTable(String query) {
+        @SuppressWarnings("unchecked")
         TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) labTable.getRowSorter();
         if (sorter == null) {
             sorter = new TableRowSorter<>(labTable.getModel());
@@ -645,7 +696,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 2, 3));
         }
     }
+
     private void filterAdmissionTable(String query) {
+        @SuppressWarnings("unchecked")
         TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) admissionTable.getRowSorter();
         if (sorter == null) {
             sorter = new TableRowSorter<>(admissionTable.getModel());
