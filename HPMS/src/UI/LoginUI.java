@@ -126,9 +126,17 @@ public class LoginUI extends JFrame {
 
         // Decide dashboard based on the authenticated user's role
         String dashboardRole = (actualRole == Role.PATIENT) ? "USER" : actualRole.name();
-        DashboardUI dash = new DashboardUI(dashboardRole, false, username); // pass username for header
-        dash.setVisible(true);
-        dispose();
+        try {
+            DashboardUI dash = new DashboardUI(dashboardRole, false, username); // pass username for header
+            dash.setVisible(true);
+            dispose();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this,
+                "Failed to open dashboard: " + ex.getMessage(),
+                "Startup Error",
+                JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     // Allow launching directly for testing/demo

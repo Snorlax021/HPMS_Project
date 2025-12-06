@@ -11,4 +11,5 @@ module HPMS {
 	exports Service;
 	exports UI;
 	exports Util;
+	exports DTO;
 }

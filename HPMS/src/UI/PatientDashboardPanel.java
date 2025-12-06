@@ -1,6 +1,7 @@
 package UI;
 
 import Service.PatientService;
+import java.time.format.DateTimeFormatter;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -46,13 +47,15 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
     private JButton btnLab;
     private JButton btnGuide;
     private JButton btnServices; // New button for Hospital Services
+    private JButton btnAdmission; // NEW: Admission & Discharge button
     private JButton activeButton;
-
     // Tables / components for future data binding
     private JTable appointmentsTable;
     private JTable billsTable;
     private JTable labTable;
     private JTable servicesTable;
+    private JTable admissionTable; // NEW: Admission & Discharge table (static data only)
+    private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     // Global search/filter state
     private String globalSearchQuery;
     private final Map<String, Map<String,String>> columnFilters = new HashMap<>();
@@ -87,14 +90,13 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
 
     public PatientDashboardPanel(String username) {
         this.currentUsername = username;
-        // Load from service profile store
+        // Restore original behavior: no constructor catch-all
         if (username != null && !username.isBlank()) {
             PatientService.PatientProfile p = patientService.getProfileByUsername(username);
             profileData = fromServiceProfile(p);
         } else {
             profileData = new ProfileData();
         }
-        // ...existing code...
         setBackground(COLOR_BG);
         setBorder(new EmptyBorder(8, 8, 8, 8));
         setLayout(new BorderLayout(8, 8));
@@ -149,7 +151,8 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         btnBills = createNavButton("Billing Info", "BILLS");
         btnLab = createNavButton("Lab Results", "LAB");
         btnGuide = createNavButton("User Guide", "GUIDE");
-        btnServices = createNavButton("Hospital Services", "SERVICES"); // Initialize new button
+        btnServices = createNavButton("Hospital Services", "SERVICES");
+        btnAdmission = createNavButton("Admission & Discharge", "ADMISSION"); // Re-add Admission & Discharge button
 
         sideNavPanel.add(Box.createVerticalStrut(6));
         sideNavPanel.add(btnSummary);
@@ -158,7 +161,8 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         sideNavPanel.add(btnHistory);
         sideNavPanel.add(btnBills);
         sideNavPanel.add(btnLab);
-        sideNavPanel.add(btnServices); 
+        sideNavPanel.add(btnServices);
+        sideNavPanel.add(btnAdmission); // Insert Admission button before Guide
         sideNavPanel.add(btnGuide); // Add new button to sidebar
         sideNavPanel.add(Box.createVerticalGlue());
         return sideNavPanel;
@@ -208,6 +212,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.add(buildLabPanel(), "LAB");
         mainContentPanel.add(buildGuidePanel(), "GUIDE");
         mainContentPanel.add(buildServicesPanel(), "SERVICES");
+        mainContentPanel.add(buildAdmissionPanel(), "ADMISSION"); // Re-add Admission & Discharge panel/card
         return mainContentPanel;
     }
 
@@ -521,15 +526,90 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         return root;
     }
 
-    // GUIDE ------------------------------------------------------------
+    // ADMISSION & DISCHARGE PANEL -------------------------------------
+    private JPanel buildAdmissionPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
+
+        JLabel header = new JLabel("Admission & Discharge", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Records:"));
+        JTextField searchField = new JTextField(20);
+        searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+        root.add(topPanel, BorderLayout.NORTH);
+
+        String[] cols = {"Type", "Date", "Department", "Status"};
+        Object[][] data = {
+            {"Admission", "2025-01-03", "General Medicine", "Completed"},
+            {"Discharge", "2025-01-07", "General Medicine", "Completed"},
+            {"Admission", "2025-02-10", "Orthopedics", "Scheduled"},
+            {"Admission", "2025-03-12", "Cardiology", "In Progress"},
+            {"Discharge", "2025-03-18", "Cardiology", "Completed"}
+        };
+        admissionTable = new JTable(new DefaultTableModel(data, cols) {
+            @Override public boolean isCellEditable(int r,int c){ return false; }
+        });
+
+        // Add search listener (local only)
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            private void apply(String q) {
+                TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) admissionTable.getRowSorter();
+                if (sorter == null) {
+                    sorter = new TableRowSorter<>(admissionTable.getModel());
+                    admissionTable.setRowSorter(sorter);
+                }
+                if (q == null || q.trim().isEmpty()) {
+                    sorter.setRowFilter(null);
+                } else {
+                    sorter.setRowFilter(RowFilter.regexFilter("(?i)" + q.trim(), 0, 2, 3));
+                }
+            }
+            public void insertUpdate(DocumentEvent e) { apply(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { apply(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { apply(searchField.getText()); }
+        });
+
+        root.add(new JScrollPane(admissionTable), BorderLayout.CENTER);
+
+        JTextArea info = new JTextArea(
+            "This module shows sample admission and discharge records."
+        );
+        info.setFont(FONT_NORMAL);
+        info.setEditable(false);
+        info.setLineWrap(true);
+        info.setWrapStyleWord(true);
+        info.setBorder(new EmptyBorder(8, 12, 8, 12));
+        root.add(new JScrollPane(info), BorderLayout.SOUTH);
+        return root;
+    }
+
+    // GUIDE PANEL -----------------------------------------------------
     private JPanel buildGuidePanel() {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
         root.add(sectionHeader("User Guide"), BorderLayout.NORTH);
-        JTextArea area = new JTextArea("FAQs and instructions:\n\n1. Profile: view or edit your personal info.\n2. Appointments: manage schedule.\n3. History: view medical records.\n4. Billing: see outstanding payments.\n5. Lab: view test results.\n6. Hospital Services: view available services, doctors, and prices.\n7. Summary: overview of activity.");
+        JTextArea area = new JTextArea(
+            "Welcome to the Patient Dashboard.\n\n" +
+            "• Use the sidebar to navigate between Summary, Profile, Appointments, Bills, Lab Results, Services, and Admission & Discharge.\n" +
+            "• Use the search boxes at the top of tables to quickly filter information.\n" +
+            "• Edit Profile lets you update your personal and contact details.\n\n" +
+            "For support, click Help in the header."
+        );
         area.setEditable(false);
         area.setFont(FONT_NORMAL);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
         root.add(new JScrollPane(area), BorderLayout.CENTER);
         return root;
     }
@@ -639,6 +719,8 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         if (billsTable != null) map.put("bills", billsTable);
         if (labTable != null) map.put("lab", labTable);
         if (servicesTable != null) map.put("services", servicesTable);
+        // NEW: expose admission table for global search
+        // if (admissionTable != null) map.put("admission", admissionTable);
         return map;
     }
     @Override

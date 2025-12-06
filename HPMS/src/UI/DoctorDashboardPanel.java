@@ -17,6 +17,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
+import Service.PatientService;
+import DTO.PatientSummaryDTO;
+import java.time.LocalDate;
 
 public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -111,7 +114,8 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         btnDashboard = createNavButton("Summary", "DASHBOARD");
         btnPatients = createNavButton("Patients", "PATIENTS");
         btnReports = createNavButton("Reports", "REPORTS");
-        //btnSummary = createNavButton("Summary", "SUMMARY");
+        // Initialize Summary button properly
+        btnSummary = createNavButton("Summary", "SUMMARY");
         JButton btnGuide = createNavButton("User Guide", "GUIDE");
 
         sideNavPanel.add(Box.createVerticalStrut(6));
@@ -324,9 +328,33 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
 
         JTextArea area = new JTextArea();
         area.setFont(FONT_NORMAL);
-        area.setText("Summary details will appear here. Charts and graphs can be added.");
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
+        area.setEditable(false);
+
+        // Try to show a patient summary DTO for demo (uses first available patient)
+        String text;
+        PatientService ps = PatientService.getInstance();
+        // Seed a demo patient if none exist yet (singleton store)
+        if (ps.listAll().isEmpty()) {
+            ps.createPatient("Jane", "Doe", LocalDate.of(1990, 1, 1), "F", "1234567890", "jane@example.com", "123 St");
+        }
+        java.util.Optional<Model.Patient> first = ps.listAll().stream().findFirst();
+        if (first.isPresent()) {
+            PatientSummaryDTO dto = ps.getPatientSummaryById(first.get().getId()).orElse(null);
+            if (dto != null) {
+                text = String.format(
+                    "Patient Summary Demo:\nID: %s\nName: %s\nAge: %s\nGender: %s\nStatus: %s\nRoom: %s\nBed: %s\nAdmitted At: %s\n\n(Fields not tracked remain blank)",
+                    dto.getId(), dto.getFullName(), dto.getAge(), dto.getGender(),
+                    dto.getStatus(), dto.getRoomId(), dto.getBedId(), dto.getAdmittedAt()
+                );
+            } else {
+                text = "No summary DTO available.";
+            }
+        } else {
+            text = "No patients found. Add patients to see a summary here.";
+        }
+        area.setText(text);
         root.add(new JScrollPane(area), BorderLayout.CENTER);
         return root;
     }

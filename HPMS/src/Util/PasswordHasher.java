@@ -22,9 +22,7 @@ public final class PasswordHasher {
 
     private PasswordHasher() {}
 
-    public static String hash(char[] password) {
-        return hash(password, DEFAULT_ITER);
-    }
+    public static String hash(char[] password) { return hash(password, DEFAULT_ITER); }
 
     public static String hash(char[] password, int iterations) {
         byte[] salt = new byte[SALT_BYTES];
@@ -32,7 +30,6 @@ public final class PasswordHasher {
         byte[] dk = pbkdf2(password, salt, iterations, KEY_LENGTH);
         String encodedSalt = Base64.getEncoder().encodeToString(salt);
         String encodedHash = Base64.getEncoder().encodeToString(dk);
-        // clear derived key
         Arrays.fill(dk, (byte)0);
         return String.format("pbkdf2_sha256$%d$%s$%s", iterations, encodedSalt, encodedHash);
     }
@@ -45,11 +42,8 @@ public final class PasswordHasher {
             int iter = Integer.parseInt(parts[1]);
             byte[] salt = Base64.getDecoder().decode(parts[2]);
             byte[] expected = Base64.getDecoder().decode(parts[3]);
-
             byte[] actual = pbkdf2(password, salt, iter, expected.length * 8);
             boolean match = MessageDigest.isEqual(expected, actual);
-
-            // clear temporary arrays
             Arrays.fill(actual, (byte)0);
             return match;
         } catch (RuntimeException ex) {

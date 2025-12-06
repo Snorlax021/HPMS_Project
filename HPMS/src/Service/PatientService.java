@@ -3,6 +3,7 @@ package Service;
 import Model.Patient;
 import Repository.InMemoryRepository;
 import Repository.Repository;
+import DTO.PatientSummaryDTO;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -18,9 +19,7 @@ public class PatientService {
     private static final class Holder { static final PatientService INSTANCE = new PatientService(); }
     public static PatientService getInstance() { return Holder.INSTANCE; }
 
-    public PatientService() {
-        this.repo = new InMemoryRepository<>(Patient::getId);
-    }
+    public PatientService() { this.repo = new InMemoryRepository<>(Patient::getId); }
 
     public Patient createPatient(String firstName, String lastName, LocalDate dob,
                                  String gender, String phone, String email, String address) {
@@ -41,6 +40,30 @@ public class PatientService {
     public void saveProfile(String username, PatientProfile profile) {
         if (username == null || username.isBlank() || profile == null) return;
         profilesByUsername.put(username, profile);
+    }
+
+    /**
+     * Return a basic PatientSummaryDTO for the given patient ID, if found.
+     * Age is computed from dateOfBirth. Other fields left null when not available.
+     */
+    public java.util.Optional<PatientSummaryDTO> getPatientSummaryById(String id) {
+        if (id == null || id.isBlank()) return java.util.Optional.empty();
+        java.util.Optional<Model.Patient> opt = findById(id);
+        if (opt.isEmpty()) return java.util.Optional.empty();
+        Model.Patient p = opt.get();
+        PatientSummaryDTO dto = new PatientSummaryDTO();
+        dto.setId(p.getId());
+        dto.setFullName(p.getFirstName() + " " + p.getLastName());
+        dto.setGender(p.getGender());
+        dto.setAge(computeAge(p.getDateOfBirth()));
+        // status/room/bed/admittedAt are not tracked here; leave null
+        return java.util.Optional.of(dto);
+    }
+
+    private Integer computeAge(java.time.LocalDate dob) {
+        if (dob == null) return null;
+        java.time.Period period = java.time.Period.between(dob, java.time.LocalDate.now());
+        return Math.max(0, period.getYears());
     }
 
     /** Lightweight DTO to hold patient-facing profile fields. */

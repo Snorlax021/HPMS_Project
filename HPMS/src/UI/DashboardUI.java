@@ -109,9 +109,11 @@ public class DashboardUI extends JFrame {
         panel.add(rightPanel, BorderLayout.EAST);
 
         // MAIN CENTER PANEL - Role-based dashboard
-        JPanel dashboardPanel = createDashboardPanel(role);
-        this.dashboardPanel = dashboardPanel;
-        contentPane.add(dashboardPanel, BorderLayout.CENTER);
+        JPanel centerPanel = createDashboardPanel(role);
+        this.dashboardPanel = centerPanel;
+        contentPane.add(centerPanel, BorderLayout.CENTER);
+        contentPane.revalidate();
+        contentPane.repaint();
     }
 
     // Create role-based panels and pass currentUsername
