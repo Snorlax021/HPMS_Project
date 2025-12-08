@@ -20,7 +20,7 @@ public class Doctor {
     private UserStatus status; // active/inactive
 
     public Doctor(User user) {
-        this.doctorId = UUID.randomUUID().toString();
+        this.doctorId = generateDoctorId();
         this.user = Objects.requireNonNull(user);
         this.status = UserStatus.ACTIVE;
     }
@@ -35,7 +35,7 @@ public class Doctor {
                   String biography,
                   String contactNumber,
                   UserStatus status) {
-        this.doctorId = UUID.randomUUID().toString();
+        this.doctorId = generateDoctorId();
         this.user = Objects.requireNonNull(user);
         this.specialization = normalize(specialization);
         this.licenseNumber = normalize(licenseNumber);
@@ -46,6 +46,19 @@ public class Doctor {
         this.biography = normalize(biography);
         this.contactNumber = normalize(contactNumber);
         this.status = status == null ? UserStatus.ACTIVE : status;
+    }
+
+    // Generate doctor id in the format: DR-XXX-YY (DR- then 3 letters then 2 digits)
+    private static String generateDoctorId() {
+        java.util.Random rnd = new java.util.Random();
+        StringBuilder sb = new StringBuilder();
+        sb.append("DR-ID"); // literal prefix required by spec
+        // two uppercase letters
+        for (int i = 0; i < 2; i++) sb.append((char) ('A' + rnd.nextInt(26)));
+        // 3-10 digits
+        int digits = 3 + rnd.nextInt(8); // 3..10
+        for (int i = 0; i < digits; i++) sb.append(rnd.nextInt(10));
+        return sb.toString();
     }
 
     private String normalize(String s) { return (s == null || s.isBlank()) ? null : s.trim(); }

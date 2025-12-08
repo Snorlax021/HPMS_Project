@@ -13,6 +13,10 @@ import java.util.Optional;
 public class AppointmentService {
     private final Repository<String, Appointment> repo;
 
+    // Singleton holder for UI code expecting AppointmentService.getInstance()
+    private static class Holder { static final AppointmentService INSTANCE = new AppointmentService(); }
+    public static AppointmentService getInstance() { return Holder.INSTANCE; }
+
     public AppointmentService() {
         this.repo = new InMemoryRepository<>(Appointment::getId);
     }
@@ -21,7 +25,7 @@ public class AppointmentService {
         if (when.isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Cannot schedule in the past.");
         }
-        Appointment a = new Appointment(patientId, staffId, when, reason);
+        Appointment a = new Appointment(patientId, staffId, when.toLocalDate(), when.toLocalTime(), reason);
         return repo.save(a);
     }
 

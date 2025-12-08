@@ -26,7 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.Period;
-import hospital.controller.StaffController;
+import Controller.StaffController;
 
 public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -51,6 +51,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private JButton btnLab;
     private JButton btnAdmission;
     private JButton activeButton;
+    // headerActions removed to avoid duplicate toolbar gap; per-panel action panels are used
 
     private String currentUsername;
     private String subRole; // REGISTRATION, BILLING, LAB (optional)
@@ -107,12 +108,11 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         JPanel header = new JPanel(new BorderLayout());
         header.setBorder(new LineBorder(COLOR_BORDER));
         header.setBackground(Color.WHITE);
-        header.setPreferredSize(new Dimension(0, 55));
+        header.setPreferredSize(new Dimension(0, 60));
 
-        // Left side: title (with subRole if any) — username removed
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        // Left side: title (with subRole if any)
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 12));
         left.setOpaque(false);
-        // Remove adding of username label
         userTagLabel = null;
 
         String titleText = (subRole != null && !subRole.isBlank()) ? "Staff Dashboard - " + subRole : "Staff Dashboard";
@@ -121,8 +121,11 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         title.setForeground(COLOR_PRIMARY.darker());
         left.add(title);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
-        right.setOpaque(false);
+        // Right: persistent refresh and dynamic actions area
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 12)); right.setOpaque(false);
+        JButton btnRefresh = new JButton("Refresh"); styleSecondaryButton(btnRefresh); btnRefresh.addActionListener(e -> JOptionPane.showMessageDialog(this, "Data refreshed (placeholder)", "Info", JOptionPane.INFORMATION_MESSAGE));
+        right.add(btnRefresh);
+
         header.add(left, BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
         return header;
@@ -186,6 +189,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         activeButton.setForeground(Color.WHITE);
         // Username is no longer shown anywhere
         cardLayout.show(mainContentPanel, card);
+        // per-panel action panels are used; no global headerActions to update
     }
 
     private JComponent createMainContent() {
@@ -253,41 +257,18 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        // Top area: title (left), search (center-left), actions (right)
-        JPanel topPanel = new JPanel(new BorderLayout(8, 8));
-        topPanel.setOpaque(false);
-
-        JLabel header = new JLabel("Patient Registration & Records", SwingConstants.LEFT);
-        header.setFont(FONT_SECTION);
-        header.setForeground(COLOR_PRIMARY.darker());
-        header.setBorder(new EmptyBorder(0, 0, 0, 0));
-        topPanel.add(header, BorderLayout.WEST);
-
-        // Search in center
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchPanel.setOpaque(false);
-        searchPanel.add(new JLabel("Search Patients:"));
-        JTextField searchField = new JTextField(20);
-        searchPanel.add(searchField);
-        topPanel.add(searchPanel, BorderLayout.CENTER);
-
-        // Actions on the right aligned with the search field
-        JPanel actionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        actionsPanel.setOpaque(false);
+        // Top area: title (left), search (center), actions (right) - action buttons visible next to search
+        JPanel topPanel = new JPanel(new BorderLayout(8, 8)); topPanel.setOpaque(false);
+        JLabel header = new JLabel("Patient Registration & Records", SwingConstants.LEFT); header.setFont(FONT_SECTION); header.setForeground(COLOR_PRIMARY.darker()); header.setBorder(new EmptyBorder(0,0,0,0)); topPanel.add(header, BorderLayout.WEST);
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchPanel.setOpaque(false); searchPanel.add(new JLabel("Search Patients:")); JTextField searchField = new JTextField(20); searchPanel.add(searchField); topPanel.add(searchPanel, BorderLayout.CENTER);
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0)); actionPanel.setOpaque(false);
         JButton btnAdd = new JButton("Add"); styleSecondaryButton(btnAdd); btnAdd.addActionListener(e -> openAddPatientDialog());
         JButton btnView = new JButton("View"); styleSecondaryButton(btnView); btnView.addActionListener(e -> openViewPatientDialog());
         JButton btnDeactivate = new JButton("Deactivate"); styleSecondaryButton(btnDeactivate); btnDeactivate.addActionListener(e -> openDeactivatePatientDialog());
         JButton btnAssign = new JButton("Assign Appointment"); styleSecondaryButton(btnAssign); btnAssign.addActionListener(e -> openAssignAppointmentDialogForStaff());
-        // Slightly increase button sizes for visual balance
-        Dimension btnDim = new Dimension(160, 34);
-        btnAdd.setPreferredSize(new Dimension(80, 34));
-        btnView.setPreferredSize(new Dimension(80, 34));
-        btnDeactivate.setPreferredSize(new Dimension(110, 34));
-        btnAssign.setPreferredSize(new Dimension(180, 34));
-        actionsPanel.add(btnAdd); actionsPanel.add(btnView); actionsPanel.add(btnDeactivate); actionsPanel.add(btnAssign);
-
-        topPanel.add(actionsPanel, BorderLayout.EAST);
-
+        btnAdd.setPreferredSize(new Dimension(80,34)); btnView.setPreferredSize(new Dimension(80,34)); btnDeactivate.setPreferredSize(new Dimension(110,34)); btnAssign.setPreferredSize(new Dimension(180,34));
+        actionPanel.add(btnAdd); actionPanel.add(btnView); actionPanel.add(btnDeactivate); actionPanel.add(btnAssign);
+        topPanel.add(actionPanel, BorderLayout.EAST);
         root.add(topPanel, BorderLayout.NORTH);
 
         // Now include hidden ID column at index 0: {ID, Name, Age, Gender, Status}
@@ -398,21 +379,11 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setOpaque(false);
-        JLabel header = new JLabel("Medical & Treatment Records", SwingConstants.LEFT);
-        header.setFont(FONT_SECTION);
-        header.setForeground(COLOR_PRIMARY.darker());
-        header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        topPanel.add(header, BorderLayout.NORTH);
-
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchPanel.setOpaque(false);
-        searchPanel.add(new JLabel("Search Records:"));
-        JTextField searchField = new JTextField(20);
-        searchPanel.add(searchField);
-        topPanel.add(searchPanel, BorderLayout.SOUTH);
-
+        // Top: header, search, actions
+        JPanel topPanel = new JPanel(new BorderLayout(8,8)); topPanel.setOpaque(false);
+        JLabel header = new JLabel("Medical & Treatment Records", SwingConstants.LEFT); header.setFont(FONT_SECTION); header.setForeground(COLOR_PRIMARY.darker()); topPanel.add(header, BorderLayout.WEST);
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchPanel.setOpaque(false); searchPanel.add(new JLabel("Search Records:")); JTextField searchField = new JTextField(20); searchPanel.add(searchField); topPanel.add(searchPanel, BorderLayout.CENTER);
+        JPanel actionPanelMed = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); actionPanelMed.setOpaque(false); JButton medAdd = new JButton("Add Record"); styleSecondaryButton(medAdd); medAdd.addActionListener(e -> openAddMedicalRecordDialog()); JButton medView = new JButton("View"); styleSecondaryButton(medView); medView.addActionListener(e -> openViewMedicalRecordDialog()); JButton medRemove = new JButton("Remove"); styleSecondaryButton(medRemove); medRemove.addActionListener(e -> openDeleteMedicalRecordDialog()); actionPanelMed.add(medAdd); actionPanelMed.add(medView); actionPanelMed.add(medRemove); topPanel.add(actionPanelMed, BorderLayout.EAST);
         root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Record ID", "Patient", "Type", "Notes"};
@@ -428,11 +399,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(new JScrollPane(medicalRecordTable), BorderLayout.CENTER);
 
-        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
-        styleToolbarButton(toolbar, "Add Record", this::openAddMedicalRecordDialog);
-        styleToolbarButton(toolbar, "View", this::openViewMedicalRecordDialog);
-        styleToolbarButton(toolbar, "Remove", this::openDeleteMedicalRecordDialog);
-        root.add(toolbar, BorderLayout.SOUTH);
+        // actions moved to headerActions (no bottom toolbar)
         return root;
     }
 
@@ -457,6 +424,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         searchPanel.add(searchField);
         topPanel.add(searchPanel, BorderLayout.SOUTH);
 
+        JPanel actionPanelBill = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); actionPanelBill.setOpaque(false); JButton billExport = new JButton("Export"); styleSecondaryButton(billExport); billExport.addActionListener(e -> openExportBillingDialog()); JButton billMark = new JButton("Mark Paid"); styleSecondaryButton(billMark); billMark.addActionListener(e -> openMarkPaidDialog()); actionPanelBill.add(billExport); actionPanelBill.add(billMark); topPanel.add(actionPanelBill, BorderLayout.EAST);
         root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Date", "Patient", "Amount", "Description", "Status"};
@@ -472,11 +440,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(new JScrollPane(billingTable), BorderLayout.CENTER);
 
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT)); footer.setOpaque(false);
-        JButton exportBtn = new JButton("Export"); styleSecondaryButton(exportBtn); exportBtn.addActionListener(e -> openExportBillingDialog());
-        JButton markPaidBtn = new JButton("Mark Paid"); styleSecondaryButton(markPaidBtn); markPaidBtn.addActionListener(e -> openMarkPaidDialog());
-        footer.add(exportBtn); footer.add(markPaidBtn);
-        root.add(footer, BorderLayout.SOUTH);
+        // actions moved to headerActions (no bottom footer)
         return root;
     }
 
@@ -501,6 +465,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         searchPanel.add(searchField);
         topPanel.add(searchPanel, BorderLayout.SOUTH);
 
+        JPanel actionPanelLab = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); actionPanelLab.setOpaque(false); JButton labAdd = new JButton("Add Test"); styleSecondaryButton(labAdd); labAdd.addActionListener(e -> openAddLabTestDialog()); JButton labUpdate = new JButton("Update"); styleSecondaryButton(labUpdate); labUpdate.addActionListener(e -> openUpdateLabTestDialog()); JButton labComplete = new JButton("Complete"); styleSecondaryButton(labComplete); labComplete.addActionListener(e -> openCompleteLabTestDialog()); actionPanelLab.add(labAdd); actionPanelLab.add(labUpdate); actionPanelLab.add(labComplete); topPanel.add(actionPanelLab, BorderLayout.EAST);
         root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Test ID", "Patient", "Test", "Status"};
@@ -516,11 +481,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(new JScrollPane(labTable), BorderLayout.CENTER);
 
-        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
-        styleToolbarButton(toolbar, "Add Test", this::openAddLabTestDialog);
-        styleToolbarButton(toolbar, "Update", this::openUpdateLabTestDialog);
-        styleToolbarButton(toolbar, "Complete", this::openCompleteLabTestDialog);
-        root.add(toolbar, BorderLayout.SOUTH);
+        // actions moved to headerActions (no bottom toolbar)
         return root;
     }
 
@@ -545,6 +506,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         searchPanel.add(searchField);
         topPanel.add(searchPanel, BorderLayout.SOUTH);
 
+        JPanel actionPanelAdm = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); actionPanelAdm.setOpaque(false); JButton admAdmit = new JButton("Admit"); styleSecondaryButton(admAdmit); admAdmit.addActionListener(e -> openAdmitPatientDialog()); JButton admDis = new JButton("Discharge"); styleSecondaryButton(admDis); admDis.addActionListener(e -> openDischargePatientDialog()); JButton admTrans = new JButton("Transfer"); styleSecondaryButton(admTrans); admTrans.addActionListener(e -> openTransferPatientDialog()); actionPanelAdm.add(admAdmit); actionPanelAdm.add(admDis); actionPanelAdm.add(admTrans); topPanel.add(actionPanelAdm, BorderLayout.EAST);
         root.add(topPanel, BorderLayout.NORTH);
 
         String[] cols = {"Admission ID", "Patient", "Room", "Status"};
@@ -560,11 +522,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(new JScrollPane(admissionTable), BorderLayout.CENTER);
 
-        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
-        styleToolbarButton(toolbar, "Admit", this::openAdmitPatientDialog);
-        styleToolbarButton(toolbar, "Discharge", this::openDischargePatientDialog);
-        styleToolbarButton(toolbar, "Transfer", this::openTransferPatientDialog);
-        root.add(toolbar, BorderLayout.SOUTH);
+        // actions moved to headerActions (no bottom toolbar)
         return root;
     }
 
@@ -732,6 +690,31 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     // SMALL UTILS -----------------------------------------------------
     private JTextField field(JPanel p, String label){ p.add(new JLabel(label)); JTextField f=new JTextField(); p.add(f); return f; }
     private int showDialog(JPanel panel, String title){ return JOptionPane.showConfirmDialog(this,panel,title,JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE); }
+    // Replaces small JOptionPane dialogs with a resizable modal JDialog that is larger for readability
+    private int showLargeDialog(JPanel panel, String title) {
+        final int[] result = {JOptionPane.CLOSED_OPTION};
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), title, Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.getContentPane().setLayout(new BorderLayout());
+        JScrollPane sp = new JScrollPane(panel);
+        // Use nearly full screen size to maximize space
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        int w = Math.max(900, screen.width - 80);
+        int h = Math.max(600, screen.height - 120);
+        sp.setPreferredSize(new Dimension(w, h));
+        dlg.getContentPane().add(sp, BorderLayout.CENTER);
+        JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton ok = new JButton("OK"); JButton cancel = new JButton("Cancel");
+        ok.addActionListener(e -> { result[0] = JOptionPane.OK_OPTION; dlg.dispose(); });
+        cancel.addActionListener(e -> { result[0] = JOptionPane.CANCEL_OPTION; dlg.dispose(); });
+        foot.add(cancel); foot.add(ok);
+        dlg.getContentPane().add(foot, BorderLayout.SOUTH);
+        dlg.pack(); dlg.setLocation(20, 20); dlg.setVisible(true);
+        // make the dialog fullscreen (undecorated) so admin/staff see the full form
+        dlg.setUndecorated(true);
+        dlg.setBounds(0, 0, screen.width, screen.height);
+        dlg.setVisible(true);
+        return result[0];
+    }
     private void info(String msg){ JOptionPane.showMessageDialog(this,msg,"Info",JOptionPane.INFORMATION_MESSAGE); }
     private void warn(String msg){ JOptionPane.showMessageDialog(this,msg,"Warning",JOptionPane.WARNING_MESSAGE); }
     private int confirm(String msg){ return JOptionPane.showConfirmDialog(this,msg,"Confirm",JOptionPane.YES_NO_OPTION); }

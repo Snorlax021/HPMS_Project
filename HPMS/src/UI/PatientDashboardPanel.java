@@ -319,12 +319,11 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         });
 
         root.add(new JScrollPane(appointmentsTable), BorderLayout.CENTER);
-
-        // Remove mutating toolbar actions, keep only View
-        JToolBar toolbar = new JToolBar();
-        toolbar.setFloatable(false);
-        styleToolbarButton(toolbar, "View", this::openViewAppointment);
-        root.add(toolbar, BorderLayout.SOUTH);
+        // Move View action to top-right area (aligned already with header/search)
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actionPanel.setOpaque(false);
+        JButton btnView = new JButton("View"); styleSecondaryButton(btnView); btnView.addActionListener(e -> openViewAppointment()); actionPanel.add(btnView);
+        JPanel topRow = new JPanel(new BorderLayout()); topRow.setOpaque(false); topRow.add(header, BorderLayout.WEST); topRow.add(actionPanel, BorderLayout.EAST); topRow.add(searchPanel, BorderLayout.CENTER);
+        root.add(topRow, BorderLayout.NORTH);
         return root;
     }
 
@@ -669,7 +668,12 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         panel.add(new JLabel("Doctor:")); panel.add(doctor);
         panel.add(new JLabel("Email:")); panel.add(email);
         panel.add(new JLabel("Phone:")); panel.add(phone);
-        int res = JOptionPane.showConfirmDialog(this, panel, "Edit Profile", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int res;
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Edit Profile", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.getContentPane().setLayout(new BorderLayout()); JScrollPane sp = new JScrollPane(panel); dlg.getContentPane().add(sp, BorderLayout.CENTER);
+        JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton ok = new JButton("Save"); JButton cancel = new JButton("Cancel"); foot.add(cancel); foot.add(ok); dlg.getContentPane().add(foot, BorderLayout.SOUTH);
+        final int[] picked = {JOptionPane.CANCEL_OPTION}; ok.addActionListener(e -> { picked[0] = JOptionPane.OK_OPTION; dlg.dispose(); }); cancel.addActionListener(e -> { picked[0] = JOptionPane.CANCEL_OPTION; dlg.dispose(); });
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize(); dlg.setUndecorated(true); dlg.setBounds(0,0, screen.width, screen.height); dlg.setVisible(true); res = picked[0];
         if (res == JOptionPane.OK_OPTION) {
             // Update local model
             profileData.name = name.getText().trim();
@@ -679,7 +683,7 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
             profileData.address = address.getText().trim();
             profileData.doctor = doctor.getText().trim();
             profileData.email = email.getText().trim();
-            profileData.phone = phone.getText().trim();
+            profileData.phone = new JTextField(profileData.phone).getText().trim();
             // Save via service
             if (currentUsername != null && !currentUsername.isBlank()) {
                 patientService.saveProfile(currentUsername, toServiceProfile(profileData));

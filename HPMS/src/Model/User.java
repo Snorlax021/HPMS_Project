@@ -73,38 +73,35 @@ public class User {
 
     // New: linked patient accessor
     public String getLinkedPatientId() { return linkedPatientId; }
-    public void setLinkedPatientId(String linkedPatientId) {
-        this.linkedPatientId = linkedPatientId;
-        this.updatedAt = Instant.now();
-    }
+    public void setLinkedPatientId(String linkedPatientId) { this.linkedPatientId = linkedPatientId; this.updatedAt = Instant.now(); }
 
     // Package-private setters used by UserService
-    void setPasswordHash(String passwordHash) {
+    public void setPasswordHash(String passwordHash) {
         this.passwordHash = Objects.requireNonNull(passwordHash);
         this.updatedAt = Instant.now();
     }
 
-    void setRole(Role role) {
+    public void setRole(Role role) {
         this.role = Objects.requireNonNull(role);
         this.updatedAt = Instant.now();
     }
 
-    void setFullName(String fullName) {
+    public void setFullName(String fullName) {
         this.fullName = Objects.requireNonNull(fullName).trim();
         this.updatedAt = Instant.now();
     }
 
-    void setEmail(String email) {
+    public void setEmail(String email) {
         this.email = Objects.requireNonNull(email).trim();
         this.updatedAt = Instant.now();
     }
 
-    void setProfilePictureUrl(String profilePictureUrl) {
+    public void setProfilePictureUrl(String profilePictureUrl) {
         this.profilePictureUrl = (profilePictureUrl == null || profilePictureUrl.isBlank()) ? null : profilePictureUrl.trim();
         this.updatedAt = Instant.now();
     }
 
-    void setStatus(UserStatus status) {
+    public void setStatus(UserStatus status) {
         this.status = Objects.requireNonNull(status);
         this.updatedAt = Instant.now();
     }

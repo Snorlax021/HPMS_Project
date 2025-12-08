@@ -75,14 +75,57 @@ public class PatientService {
 
     /** Lightweight DTO to hold patient-facing profile fields. */
     public static class PatientProfile {
-        public String name = "";
-        public String age = "";
-        public String bloodType = "";
+        // Expanded set of profile fields to match AdminDashboardPanel usage
+        public String surname = "";
+        public String firstName = "";
+        public String middleName = "";
+        public String dateOfBirth = "";
         public String gender = "";
+        // legacy single-field name used by older code
+        public String name = "";
+        public String nationality = "";
+        public String civilStatus = "";
+        public String age = "";
+
+        public String phone = "";
+        public String email = "";
         public String address = "";
         public String doctor = "";
-        public String email = "";
-        public String phone = "";
+        public String emergencyContactName = "";
+        public String emergencyContactNumber = "";
+        public String emergencyContactRelationship = "";
+
+        public String idType = "";
+        public String idNumber = "";
+        public String idFrontPath = "";
+        public String idBackPath = "";
+        public String twoByTwoPath = "";
+
+        public String bloodType = "";
+        public String allergies = "";
+        public String currentMedications = "";
+        public String existingConditions = "";
+        public String pastSurgeries = "";
+        public String familyMedicalHistory = "";
+        public String immunizationHistory = "";
+        public String primaryCarePhysician = "";
+
+        public String insuranceProvider = "";
+        public String insuranceNumber = "";
+        public String insuranceExpiry = "";
+        public String philHealthNumber = "";
+
+        public String dateRegistered = "";
+        public String patientRecordId = "";
+        public String status = "";
+        public String assignedDoctor = "";
+
+        public String occupation = "";
+        public String employerName = "";
+        public String workAddress = "";
+        public String religion = "";
+        public String preferredLanguage = "";
+        public String preferredContactMethod = "";
     }
 
     /** Username + temp password issued to a newly created patient account. */
@@ -94,9 +137,23 @@ public class PatientService {
 
     /** Returns the last generated credentials for the given patientId, if any (for UI display). */
     public Optional<ProvisionedAccount> getProvisionedAccountForPatient(String patientId) {
-        return Optional.ofNullable(provisionedAccounts.get(patientId));
-    }
+         return Optional.ofNullable(provisionedAccounts.get(patientId));
+     }
 
+    /**
+     * Create a Patient record linked to an existing User without provisioning a new User account.
+     * This is used when a patient account is already created (e.g. admin added a user) and
+     * we want to store the clinical Patient domain object.
+     */
+    public Patient createPatientForUser(Model.User user, String firstName, String lastName, LocalDate dob, String gender, String phone, String address) {
+        if (user == null) throw new IllegalArgumentException("user required");
+        String patientNumber = Model.Patient.generatePatientNumber();
+        Model.Patient p = new Model.Patient(user, patientNumber, dob == null ? LocalDate.now().minusYears(20) : dob, gender, null, null, address, phone, null, null);
+        repo.save(p);
+        // link back to user
+        try { user.setLinkedPatientId(p.getId()); } catch (Exception ignored) {}
+        return p;
+    }
     // --- Internal helpers -------------------------------------------
     private void autoProvisionPatientAccount(Patient patient) {
         if (patient == null) return;
@@ -115,7 +172,10 @@ public class PatientService {
         String tempPassword = generateTempPassword(patient);
         try {
             userService.createUser(username, tempPassword.toCharArray(), Role.PATIENT);
-            userService.linkUserToPatient(username, patient.getId());
+            // Attempt to locate created user and attach linkedPatientId where supported
+            userService.findByUsername(username).ifPresent(u -> {
+                try { u.setLinkedPatientId(patient.getId()); } catch (Exception ignored) {}
+            });
             provisionedAccounts.put(patient.getId(), new ProvisionedAccount(username, tempPassword));
         } catch (RuntimeException ex) {
             // In case password policy or other issues, ensure we don't crash patient creation

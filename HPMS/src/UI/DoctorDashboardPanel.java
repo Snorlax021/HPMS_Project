@@ -23,7 +23,7 @@ import DTO.PatientSummaryDTO;
 import Model.Appointment;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import hospital.controller.DoctorController;
+import Controller.DoctorController;
 
 public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -129,6 +129,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         // Initialize Summary button properly
         btnSummary = createNavButton("Patient Detail", "SUMMARY");
         JButton btnGuide = createNavButton("User Guide", "GUIDE");
+        JButton btnDoctors = createNavButton("Doctor Management", "DOCTORS");
 
         int gap = 12;
         sideNavPanel.add(Box.createVerticalStrut(gap));
@@ -137,6 +138,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         sideNavPanel.add(btnReports); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnAppointments); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnSummary); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnDoctors); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnGuide); sideNavPanel.add(Box.createVerticalStrut(8));
         sideNavPanel.add(Box.createVerticalGlue());
         return sideNavPanel;
@@ -184,6 +186,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.add(buildReportsPanel(), "REPORTS");
         mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
         mainContentPanel.add(buildGuidePanel(), "GUIDE");
+        mainContentPanel.add(new UI.DoctorManagementPanel(), "DOCTORS");
         return mainContentPanel;
     }
 
@@ -244,31 +247,20 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setOpaque(false);
-        JLabel header = new JLabel("Patient Management", SwingConstants.LEFT);
-        header.setFont(FONT_SECTION);
-        header.setForeground(COLOR_PRIMARY.darker());
-        header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        topPanel.add(header, BorderLayout.NORTH);
-
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchPanel.setOpaque(false);
-        searchPanel.add(new JLabel("Search Patients:"));
-        JTextField searchField = new JTextField(20);
-        searchPanel.add(searchField);
-        topPanel.add(searchPanel, BorderLayout.SOUTH);
-
+        // top area: header (left), search (center), actions (right)
+        JPanel topPanel = new JPanel(new BorderLayout(8,8)); topPanel.setOpaque(false);
+        JLabel header = new JLabel("Patient Management", SwingConstants.LEFT); header.setFont(FONT_SECTION); header.setForeground(COLOR_PRIMARY.darker()); topPanel.add(header, BorderLayout.WEST);
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchPanel.setOpaque(false); searchPanel.add(new JLabel("Search Patients:")); JTextField searchField = new JTextField(20); searchPanel.add(searchField); topPanel.add(searchPanel, BorderLayout.CENTER);
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0)); actionPanel.setOpaque(false);
+        JButton btnAdd = new JButton("Add"); styleSecondaryButton(btnAdd); btnAdd.addActionListener(e -> openAddPatientDialog());
+        JButton btnView = new JButton("View"); styleSecondaryButton(btnView); btnView.addActionListener(e -> openViewPatientDialog());
+        JButton btnDelete = new JButton("Delete"); styleSecondaryButton(btnDelete); btnDelete.addActionListener(e -> openDeletePatientDialog());
+        JButton btnAssign = new JButton("Assign Appointment"); styleSecondaryButton(btnAssign); btnAssign.addActionListener(e -> openAssignAppointmentDialog());
+        actionPanel.add(btnAdd); actionPanel.add(btnView); actionPanel.add(btnDelete); actionPanel.add(btnAssign);
+        topPanel.add(actionPanel, BorderLayout.EAST);
         root.add(topPanel, BorderLayout.NORTH);
 
-        JToolBar toolbar = new JToolBar();
-        toolbar.setFloatable(false);
-        styleToolbarButton(toolbar, "Add", this::openAddPatientDialog);
-        styleToolbarButton(toolbar, "View", this::openViewPatientDialog);
-        styleToolbarButton(toolbar, "Delete", this::openDeletePatientDialog);
-        styleToolbarButton(toolbar, "Assign Appointment", this::openAssignAppointmentDialog);
-        root.add(toolbar, BorderLayout.SOUTH);
-
+        // Table setup
         String[] cols = {"ID", "Name", "Age", "Condition"};
         Object[][] data = {{1, "Alice Johnson", 45, "Hypertension"}, {2, "Bob Lee", 32, "Diabetes"}};
         patientsTable = new JTable(new DefaultTableModel(data, cols));
@@ -289,20 +281,17 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         JPanel root = new JPanel(new BorderLayout(8,8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12,12,12,12));
-        JLabel header = new JLabel("Appointments", SwingConstants.LEFT);
-        header.setFont(FONT_SECTION);
-        header.setForeground(COLOR_PRIMARY.darker());
-        header.setBorder(new EmptyBorder(0,0,8,0));
-        root.add(header, BorderLayout.NORTH);
+        // top area: header (left), search (center), actions (right)
+        JPanel topAppPanel = new JPanel(new BorderLayout(8,8)); topAppPanel.setOpaque(false);
+        JLabel appHeader = new JLabel("Appointments", SwingConstants.LEFT); appHeader.setFont(FONT_SECTION); appHeader.setForeground(COLOR_PRIMARY.darker()); topAppPanel.add(appHeader, BorderLayout.WEST);
+        JPanel appActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); appActionPanel.setOpaque(false); JButton btnRefreshAppts = new JButton("Refresh"); styleSecondaryButton(btnRefreshAppts); btnRefreshAppts.addActionListener(e -> refreshAppointments()); appActionPanel.add(btnRefreshAppts); topAppPanel.add(appActionPanel, BorderLayout.EAST);
+        root.add(topAppPanel, BorderLayout.NORTH);
 
         String[] cols = {"Patient ID","Patient","Doctor","When","Reason","Status"};
         Object[][] data = {};
         appointmentsTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
         root.add(new JScrollPane(appointmentsTable), BorderLayout.CENTER);
 
-        JToolBar tb = new JToolBar(); tb.setFloatable(false);
-        styleToolbarButton(tb, "Refresh", () -> refreshAppointments());
-        root.add(tb, BorderLayout.SOUTH);
         refreshAppointments();
         return root;
     }
@@ -334,26 +323,12 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setOpaque(false);
-        JLabel header = new JLabel("Reports History", SwingConstants.LEFT);
-        header.setFont(FONT_SECTION);
-        header.setForeground(COLOR_PRIMARY.darker());
-        header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        topPanel.add(header, BorderLayout.NORTH);
-
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchPanel.setOpaque(false);
-        searchPanel.add(new JLabel("Search Reports:"));
-        JTextField searchField = new JTextField(20);
-        searchPanel.add(searchField);
-        topPanel.add(searchPanel, BorderLayout.SOUTH);
-
-        root.add(topPanel, BorderLayout.NORTH);
-
-        String[] cols = {"Date", "Patient", "Type", "Status"};
-        Object[][] data = {{"2025-01-10", "Alice Johnson", "Lab", "Completed"}, {"2025-01-11", "Bob Lee", "Imaging", "Pending"}};
-        reportsTable = new JTable(new DefaultTableModel(data, cols));
+        // Top area: header (left), search (center), actions (right)
+        JPanel reportsTop = new JPanel(new BorderLayout(8,8)); reportsTop.setOpaque(false);
+        JLabel repHeader = new JLabel("Reports History", SwingConstants.LEFT); repHeader.setFont(FONT_SECTION); repHeader.setForeground(COLOR_PRIMARY.darker()); reportsTop.add(repHeader, BorderLayout.WEST);
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchPanel.setOpaque(false); searchPanel.add(new JLabel("Search Reports:")); JTextField searchField = new JTextField(20); searchPanel.add(searchField); reportsTop.add(searchPanel, BorderLayout.CENTER);
+        JPanel reportsAction = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); reportsAction.setOpaque(false); JButton btnExport = new JButton("Export"); styleSecondaryButton(btnExport); btnExport.addActionListener(e -> openExportReportsDialog()); reportsAction.add(btnExport); reportsTop.add(reportsAction, BorderLayout.EAST);
+        root.add(reportsTop, BorderLayout.NORTH);
 
         // Add search listener
         searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -362,15 +337,11 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
             public void changedUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
         });
 
-        root.add(new JScrollPane(reportsTable), BorderLayout.CENTER);
+        String[] cols = {"Date", "Patient", "Type", "Status"};
+        Object[][] data = {{"2025-01-10", "Alice Johnson", "Lab", "Completed"}, {"2025-01-11", "Bob Lee", "Imaging", "Pending"}};
+        reportsTable = new JTable(new DefaultTableModel(data, cols));
 
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        footer.setOpaque(false);
-        JButton btnExport = new JButton("Export");
-        styleSecondaryButton(btnExport);
-        btnExport.addActionListener(e -> openExportReportsDialog());
-        footer.add(btnExport);
-        root.add(footer, BorderLayout.SOUTH);
+        root.add(new JScrollPane(reportsTable), BorderLayout.CENTER);
         return root;
     }
 
@@ -474,7 +445,13 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         panel.add(new JLabel("Name:")); JTextField name = new JTextField(); panel.add(name);
         panel.add(new JLabel("Age:")); JTextField age = new JTextField(); panel.add(age);
         panel.add(new JLabel("Condition:")); JTextField cond = new JTextField(); panel.add(cond);
-        int result = JOptionPane.showConfirmDialog(this, panel, "Add Patient", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        // Show larger dialog
+        int result;
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Add Patient", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.getContentPane().setLayout(new BorderLayout()); JScrollPane sp = new JScrollPane(panel); dlg.getContentPane().add(sp, BorderLayout.CENTER);
+        JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton ok = new JButton("Save"); JButton cancel = new JButton("Cancel"); foot.add(cancel); foot.add(ok); dlg.getContentPane().add(foot, BorderLayout.SOUTH);
+        final int[] picked = {JOptionPane.CANCEL_OPTION}; ok.addActionListener(e -> { picked[0] = JOptionPane.OK_OPTION; dlg.dispose(); }); cancel.addActionListener(e -> { picked[0] = JOptionPane.CANCEL_OPTION; dlg.dispose(); });
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize(); dlg.setUndecorated(true); dlg.setBounds(0,0, screen.width, screen.height); dlg.setVisible(true); result = picked[0];
         if (result == JOptionPane.OK_OPTION) {
             if (!name.getText().isEmpty() && !age.getText().isEmpty()) {
                 DefaultTableModel m = (DefaultTableModel) patientsTable.getModel();
@@ -512,7 +489,12 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         panel.add(new JLabel("Date (YYYY-MM-DD):")); JTextField date = new JTextField(); panel.add(date);
         panel.add(new JLabel("Time (HH:MM optional):")); JTextField time = new JTextField(); panel.add(time);
         panel.add(new JLabel("Type:")); JComboBox<String> type = new JComboBox<>(new String[]{"Consultation", "Follow-up", "Procedure"}); panel.add(type);
-        int result = JOptionPane.showConfirmDialog(this, panel, "Assign Appointment", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int result;
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Assign Appointment", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.getContentPane().setLayout(new BorderLayout()); JScrollPane sp = new JScrollPane(panel); dlg.getContentPane().add(sp, BorderLayout.CENTER);
+        JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton ok = new JButton("Assign"); JButton cancel = new JButton("Cancel"); foot.add(cancel); foot.add(ok); dlg.getContentPane().add(foot, BorderLayout.SOUTH);
+        final int[] picked = {JOptionPane.CANCEL_OPTION}; ok.addActionListener(e -> { picked[0] = JOptionPane.OK_OPTION; dlg.dispose(); }); cancel.addActionListener(e -> { picked[0] = JOptionPane.CANCEL_OPTION; dlg.dispose(); });
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize(); dlg.setUndecorated(true); dlg.setBounds(0,0, screen.width, screen.height); dlg.setVisible(true); result = picked[0];
         if (result == JOptionPane.OK_OPTION) {
             String dateStr = date.getText().trim();
             if (dateStr.isEmpty()) { JOptionPane.showMessageDialog(this, "Date required.", "Warning", JOptionPane.WARNING_MESSAGE); return; }

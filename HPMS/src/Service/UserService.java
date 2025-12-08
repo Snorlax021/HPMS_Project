@@ -2,6 +2,7 @@ package Service;
 
 import Model.Role;
 import Model.User;
+import Model.UserStatus;
 import Util.PasswordHasher;
 
 import java.util.Map;
@@ -57,7 +58,10 @@ public class UserService {
         User user = usersByUsername.get(normalized);
         if (user == null) return Optional.empty();
         boolean ok = PasswordHasher.verify(password, user.getPasswordHash());
-        return ok ? Optional.of(user) : Optional.empty();
+        if (!ok) return Optional.empty();
+        // Ensure account is active
+        if (user.getStatus() != UserStatus.ACTIVE) return Optional.empty();
+        return Optional.of(user);
     }
 
     /**
@@ -123,13 +127,28 @@ public class UserService {
         return false;
     }
 
-    // Link a user to a patient by username. Returns true if user exists and was updated.
-    public boolean linkUserToPatient(String username, String patientId) {
-        if (username == null || patientId == null) return false;
-        User u = usersByUsername.get(username.trim().toLowerCase());
-        if (u == null) return false;
-        u.setLinkedPatientId(patientId);
+    // Deactivate user (soft delete) and activate back
+    public boolean deactivateById(String id) {
+        Optional<User> opt = findById(id);
+        if (opt.isEmpty()) return false;
+        User u = opt.get();
+        if (u.getRole() == Role.ADMIN) return false; // protect admin
+        u.setStatus(Model.UserStatus.INACTIVE);
         return true;
+    }
+
+    public boolean activateById(String id) {
+        Optional<User> opt = findById(id);
+        if (opt.isEmpty()) return false;
+        User u = opt.get();
+        u.setStatus(Model.UserStatus.ACTIVE);
+        return true;
+    }
+
+    public java.util.List<User> findDeactivatedByRole(Role role) {
+        java.util.List<User> out = new java.util.ArrayList<>();
+        for (User u : usersByUsername.values()) if (u.getRole()==role && u.getStatus()!=null && u.getStatus()!=Model.UserStatus.ACTIVE) out.add(u);
+        return out;
     }
 
     // Simple password policy: minimum length and at least one digit and one letter.

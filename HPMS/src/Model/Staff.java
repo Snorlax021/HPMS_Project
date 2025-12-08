@@ -21,7 +21,7 @@ public class Staff {
 
     // Minimal constructor: requires user, optional details set later
     public Staff(User user) {
-        this.staffId = UUID.randomUUID().toString();
+        this.staffId = generateStaffId();
         this.user = Objects.requireNonNull(user);
         this.status = UserStatus.ACTIVE;
     }
@@ -35,7 +35,7 @@ public class Staff {
                  String contactNumber,
                  LocalDate hireDate,
                  UserStatus status) {
-        this.staffId = UUID.randomUUID().toString();
+        this.staffId = generateStaffId();
         this.user = Objects.requireNonNull(user);
         this.firstName = normalize(firstName);
         this.lastName = normalize(lastName);
@@ -97,5 +97,15 @@ public class Staff {
                 ", hireDate=" + hireDate +
                 ", status=" + status +
                 '}';
+    }
+
+    private static String generateStaffId() {
+        java.util.Random rnd = new java.util.Random();
+        StringBuilder sb = new StringBuilder();
+        sb.append("ST-ID");
+        for (int i = 0; i < 2; i++) sb.append((char) ('A' + rnd.nextInt(26)));
+        int digits = 3 + rnd.nextInt(8); // 3..10
+        for (int i = 0; i < digits; i++) sb.append(rnd.nextInt(10));
+        return sb.toString();
     }
 }

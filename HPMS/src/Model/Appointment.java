@@ -31,13 +31,19 @@ public class Appointment {
     }
 
     public String getId() { return id; }
-    public String getPatientId() { return patientId; }
+    public String getPatientId1() { return patientId; }
     public String getDoctorId() { return doctorId; }
     public LocalDate getScheduleDate() { return scheduleDate; }
     public LocalTime getScheduleTime() { return scheduleTime; }
     public String getReason() { return reason; }
     public AppointmentStatus getStatus() { return status; }
     public Instant getCreatedAt() { return createdAt; }
+
+    // Compatibility methods expected by older UI
+    public String getPatientId() { return patientId; }
+    public String getStaffId() { return doctorId; }
+    public java.time.LocalDateTime getScheduledAt() { return java.time.LocalDateTime.of(scheduleDate, scheduleTime); }
+    public AppointmentStatus getAppointmentStatus() { return status; }
 
     public void setStatus(AppointmentStatus status) { this.status = Objects.requireNonNull(status); }
 

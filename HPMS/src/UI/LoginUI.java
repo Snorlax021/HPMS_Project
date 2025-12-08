@@ -11,6 +11,11 @@ import Service.UserService;
 
 import java.util.Arrays;
 import java.util.Optional;
+import javax.swing.JFrame;
+import UI.AdminDashboardPanel;
+import UI.DoctorDashboardPanel;
+import UI.StaffDashboardPanel;
+import UI.PatientDashboardPanel;
 
 public class LoginUI extends JFrame {
 
@@ -144,27 +149,17 @@ public class LoginUI extends JFrame {
         Role actualRole = user.getRole();
 
         JOptionPane.showMessageDialog(this, "Login Successful!", "Welcome", JOptionPane.INFORMATION_MESSAGE);
-
-        // Decide dashboard based on the authenticated user's role
-        String dashboardRole = (actualRole == Role.PATIENT) ? "USER" : actualRole.name();
-        try {
-            DashboardUI dash = new DashboardUI(dashboardRole, false, username); // pass username for header
-            dash.setVisible(true);
-            dispose();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this,
-                "Failed to open dashboard: " + ex.getMessage(),
-                "Startup Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
+        // Open the main DashboardUI which will show a placeholder and can attempt to load the full role panel
+        DashboardUI dash = new DashboardUI((actualRole == Role.PATIENT) ? "USER" : actualRole.name(), false, username);
+        dash.setVisible(true);
+        dispose();
     }
 
     private String buildInfoText() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Health Practice Management System (HPMS)\n\n");
+        sb.append("Hospital Patient Management System (HPMS)\n\n");
         sb.append("Overview:\n");
-        sb.append("  HPMS is a lightweight practice management application designed to help clinics manage patients, staff, appointments, and basic reporting.\n\n");
+        sb.append("  HPMS is a lightweight practice management application designed to help hospital manage patients, staff, appointments, and basic reporting.\n\n");
 
         sb.append("Doctors:\n");
         sb.append("  - Maintain doctor profiles (specialty, availability, contact).\n");

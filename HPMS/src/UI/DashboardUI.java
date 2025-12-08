@@ -7,7 +7,6 @@ import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import javax.swing.*;
-import hospital.controller.*;
 
 public class DashboardUI extends JFrame {
 
@@ -15,7 +14,6 @@ public class DashboardUI extends JFrame {
     private JPanel contentPane;
     private JComponent dashboardPanel;
     private JComboBox<String> roleSelector; // role switcher
-    private boolean allowRoleSwitch = true;
     private String currentUsername;
 
     public static void main(String[] args) {
@@ -35,7 +33,6 @@ public class DashboardUI extends JFrame {
     public DashboardUI(String role) { this(role, true, null); }
     public DashboardUI(String role, boolean allowRoleSwitch) { this(role, allowRoleSwitch, null); }
     public DashboardUI(String role, boolean allowRoleSwitch, String username) {
-        this.allowRoleSwitch = allowRoleSwitch;
         this.currentUsername = username;
         setTitle("HPMS Dashboard");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -124,22 +121,57 @@ public class DashboardUI extends JFrame {
             return new JPanel();
         }
         String upper = role.toUpperCase();
-        switch (upper) {
-            case "ADMIN":
-                return new AdminDashboardPanel((hospital.controller.AdminController) null, currentUsername);
-            case "DOCTOR":
-                return new DoctorDashboardPanel((hospital.controller.DoctorController) null, currentUsername);
-            case "STAFF":
-                return new StaffDashboardPanel((hospital.controller.StaffController) null, currentUsername);
-            case "USER":
-                return new PatientDashboardPanel((hospital.controller.PatientController) null, currentUsername);
-            default:
-                if (upper.startsWith("STAFF:")) {
-                    String subRole = upper.substring("STAFF:".length());
-                    return new StaffDashboardPanel((hospital.controller.StaffController) null, subRole, currentUsername);
+        // First try to load the full dashboard class reflectively (so we don't create compile-time dependency)
+        String targetClass = switch (upper) {
+            case "ADMIN" -> "UI.AdminDashboardPanel";
+            case "DOCTOR" -> "UI.DoctorDashboardPanel";
+            case "STAFF" -> "UI.StaffDashboardPanel";
+            case "USER" -> "UI.PatientDashboardPanel";
+            default -> null;
+        };
+        if (targetClass != null) {
+            try {
+                Class<?> cls = Class.forName(targetClass);
+                Object inst = null;
+                // Prefer constructors: (Object controller, String username) -> call with (null, currentUsername)
+                for (java.lang.reflect.Constructor<?> c : cls.getDeclaredConstructors()) {
+                    Class<?>[] pts = c.getParameterTypes();
+                    try {
+                        if (pts.length == 2 && pts[1] == String.class) {
+                            c.setAccessible(true);
+                            inst = c.newInstance((Object) null, currentUsername);
+                            break;
+                        }
+                        if (pts.length == 1 && pts[0] == String.class) {
+                            c.setAccessible(true);
+                            inst = c.newInstance(currentUsername);
+                            break;
+                        }
+                        if (pts.length == 0) {
+                            c.setAccessible(true);
+                            inst = c.newInstance();
+                            break;
+                        }
+                    } catch (Exception ex) {
+                        // try next constructor
+                    }
                 }
-                JOptionPane.showMessageDialog(this, "Unknown role: " + role + ". Defaulting to basic view.", "Warning", JOptionPane.WARNING_MESSAGE);
-                return new JPanel();
+                if (inst instanceof JPanel p) return p;
+            } catch (Throwable t) {
+                // loading failed; we'll fall back to lite panel
+            }
+        }
+        // Fallback lightweight panels preserve original UI layout if full panels unavailable
+        switch (upper) {
+            case "ADMIN": return new AdminLitePanel(currentUsername);
+            case "DOCTOR": return new DoctorLitePanel(currentUsername);
+            case "STAFF": return new StaffLitePanel(currentUsername);
+            case "USER": return new PatientLitePanel(currentUsername);
+            default:
+                JPanel p = new JPanel(new BorderLayout());
+                p.add(new JLabel(upper + " Dashboard (Lite)", SwingConstants.CENTER), BorderLayout.NORTH);
+                p.add(new JLabel("No specialized panel available."), BorderLayout.CENTER);
+                return p;
         }
     }
 

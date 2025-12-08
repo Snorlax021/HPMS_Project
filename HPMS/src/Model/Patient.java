@@ -27,6 +27,11 @@ public class Patient {
 
     private final Instant createdAt;
 
+    // Additional backward-compatible fields used by UI code
+    private final String firstName;
+    private final String lastName;
+    private final String gender; // compatibility alias for sex
+
     // Minimal constructor
     public Patient(User user,
                    String patientNumber,
@@ -40,7 +45,7 @@ public class Patient {
                    String emergencyContactNumber) {
         this.patientId = UUID.randomUUID().toString();
         this.user = Objects.requireNonNull(user);
-        this.patientNumber = requireNonBlank(patientNumber, "patientNumber");
+        this.patientNumber = (patientNumber == null || patientNumber.isBlank()) ? generatePatientNumber() : requireNonBlank(patientNumber, "patientNumber");
         this.dateOfBirth = Objects.requireNonNull(dateOfBirth);
         this.sex = normalize(sex);
         this.bloodType = normalize(bloodType);
@@ -50,6 +55,28 @@ public class Patient {
         this.emergencyContactName = normalize(emergencyContactName);
         this.emergencyContactNumber = normalize(emergencyContactNumber);
         this.createdAt = Instant.now();
+        this.firstName = null;
+        this.lastName = null;
+        this.gender = null;
+    }
+
+    // Convenience constructor used by older UI/service code (firstName, lastName, dob, gender, phone, email, address)
+    public Patient(String firstName, String lastName, LocalDate dateOfBirth, String gender, String contactNumber, String email, String address) {
+        this.patientId = UUID.randomUUID().toString();
+        this.user = null;
+        this.patientNumber = generatePatientNumber();
+        this.dateOfBirth = Objects.requireNonNull(dateOfBirth);
+        this.sex = normalize(gender);
+        this.firstName = normalize(firstName);
+        this.lastName = normalize(lastName);
+        this.gender = this.sex;
+        this.bloodType = null;
+        this.civilStatus = null;
+        this.address = normalize(address);
+        this.contactNumber = normalize(contactNumber);
+        this.emergencyContactName = null;
+        this.emergencyContactNumber = null;
+        this.createdAt = Instant.now();
     }
 
     private String normalize(String s) { return (s == null || s.isBlank()) ? null : s.trim(); }
@@ -58,9 +85,26 @@ public class Patient {
         return s.trim();
     }
 
+    // Public generator for patient number: PT-ID + 2 uppercase letters + 3..10 digits
+    public static String generatePatientNumber() {
+        java.util.Random rnd = new java.util.Random();
+        StringBuilder sb = new StringBuilder();
+        sb.append("PT-ID");
+        for (int i = 0; i < 2; i++) sb.append((char) ('A' + rnd.nextInt(26)));
+        int digits = 3 + rnd.nextInt(8); // 3..10
+        for (int i = 0; i < digits; i++) sb.append(rnd.nextInt(10));
+        return sb.toString();
+    }
+
+    // Backwards-compatible accessors expected by UI code
+    public String getId() { return patientId; }
+    public String getFirstName() { return firstName; }
+    public String getLastName() { return lastName; }
+    public String getGender() { return gender == null ? sex : gender; }
+    // Keep existing getters as well
     public String getPatientId() { return patientId; }
     public User getUser() { return user; }
-    public String getUserId() { return user.getId(); }
+    public String getUserId() { return user == null ? null : user.getId(); }
     public String getPatientNumber() { return patientNumber; }
 
     public LocalDate getDateOfBirth() { return dateOfBirth; }
