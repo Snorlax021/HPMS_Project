@@ -12,4 +12,5 @@ module HPMS {
 	exports UI;
 	exports Util;
 	exports DTO;
+	exports Controller;
 }

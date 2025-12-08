@@ -18,11 +18,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import Service.PatientService;
+import Service.AppointmentService;
 import DTO.PatientSummaryDTO;
+import Model.Appointment;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import hospital.controller.DoctorController;
 
 public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
+
+    // controller reference
+    private final DoctorController doctorController;
 
     // THEME CONSTANTS (match AdminDashboardPanel)
     private static final Color COLOR_BG = Color.WHITE;
@@ -31,9 +38,9 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private static final Color COLOR_PRIMARY_HOVER = new Color(80, 140, 220);
     private static final Color COLOR_ACTIVE = new Color(100, 160, 240);
     private static final Color COLOR_BORDER = new Color(210, 215, 220);
-    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 20);
-    private static final Font FONT_SECTION = new Font("Segoe UI", Font.BOLD, 16);
-    private static final Font FONT_NORMAL = new Font("Segoe UI", Font.PLAIN, 14);
+    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 22);
+    private static final Font FONT_SECTION = new Font("Segoe UI", Font.BOLD, 18);
+    private static final Font FONT_NORMAL = new Font("Segoe UI", Font.PLAIN, 16);
 
     // Layout + navigation
     private CardLayout cardLayout;
@@ -53,6 +60,8 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     // Tables
     private JTable patientsTable;
     private JTable reportsTable;
+    private JTable appointmentsTable;
+    private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     // Global search/filter state
     private String globalSearchQuery;
     private final Map<String, Map<String,String>> columnFilters = new HashMap<>();
@@ -60,8 +69,10 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     // NEW: username label reference to control visibility
     private JLabel userTagLabel;
 
-    public DoctorDashboardPanel() { this(null); }
-    public DoctorDashboardPanel(String username) {
+    public DoctorDashboardPanel() { this(null, null); }
+    public DoctorDashboardPanel(String username) { this(null, username); }
+    public DoctorDashboardPanel(DoctorController controller, String username) {
+        this.doctorController = controller;
         this.currentUsername = username;
         setBackground(COLOR_BG);
         setBorder(new EmptyBorder(8, 8, 8, 8));
@@ -109,21 +120,24 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         sideNavPanel.setLayout(new BoxLayout(sideNavPanel, BoxLayout.Y_AXIS));
         sideNavPanel.setBackground(COLOR_SIDEBAR_BG);
         sideNavPanel.setBorder(new LineBorder(COLOR_BORDER));
-        sideNavPanel.setPreferredSize(new Dimension(190, 0));
+        sideNavPanel.setPreferredSize(new Dimension(260, 0));
 
         btnDashboard = createNavButton("Summary", "DASHBOARD");
         btnPatients = createNavButton("Patients", "PATIENTS");
         btnReports = createNavButton("Reports", "REPORTS");
+        JButton btnAppointments = createNavButton("Appointments", "APPOINTMENTS");
         // Initialize Summary button properly
-        btnSummary = createNavButton("Summary", "SUMMARY");
+        btnSummary = createNavButton("Patient Detail", "SUMMARY");
         JButton btnGuide = createNavButton("User Guide", "GUIDE");
 
-        sideNavPanel.add(Box.createVerticalStrut(6));
-        sideNavPanel.add(btnDashboard);
-        sideNavPanel.add(btnPatients);
-        sideNavPanel.add(btnReports);
-        sideNavPanel.add(btnSummary);
-        sideNavPanel.add(btnGuide);
+        int gap = 12;
+        sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnDashboard); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnPatients); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnReports); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnAppointments); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnSummary); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnGuide); sideNavPanel.add(Box.createVerticalStrut(8));
         sideNavPanel.add(Box.createVerticalGlue());
         return sideNavPanel;
     }
@@ -131,7 +145,8 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private JButton createNavButton(String text, String card) {
         JButton b = new JButton(text);
         b.setAlignmentX(Component.CENTER_ALIGNMENT);
-        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 64));
+        b.setPreferredSize(new Dimension(Integer.MAX_VALUE, 64));
         b.setFont(FONT_NORMAL);
         b.setBackground(Color.WHITE);
         b.setFocusPainted(false);
@@ -161,10 +176,11 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel = new JPanel();
         cardLayout = new CardLayout();
         mainContentPanel.setLayout(cardLayout);
-        mainContentPanel.setBorder(new LineBorder(COLOR_BORDER));
+        mainContentPanel.setBorder(new EmptyBorder(16,16,16,16));
 
         mainContentPanel.add(buildDashboardPanel(), "DASHBOARD");
         mainContentPanel.add(buildPatientsPanel(), "PATIENTS");
+        mainContentPanel.add(buildAppointmentsPanel(), "APPOINTMENTS");
         mainContentPanel.add(buildReportsPanel(), "REPORTS");
         mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
         mainContentPanel.add(buildGuidePanel(), "GUIDE");
@@ -266,6 +282,50 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
 
         root.add(new JScrollPane(patientsTable), BorderLayout.CENTER);
         return root;
+    }
+
+    // APPOINTMENTS PANEL -----------------------------------------------
+    private JPanel buildAppointmentsPanel() {
+        JPanel root = new JPanel(new BorderLayout(8,8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12,12,12,12));
+        JLabel header = new JLabel("Appointments", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0,0,8,0));
+        root.add(header, BorderLayout.NORTH);
+
+        String[] cols = {"Patient ID","Patient","Doctor","When","Reason","Status"};
+        Object[][] data = {};
+        appointmentsTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
+        root.add(new JScrollPane(appointmentsTable), BorderLayout.CENTER);
+
+        JToolBar tb = new JToolBar(); tb.setFloatable(false);
+        styleToolbarButton(tb, "Refresh", () -> refreshAppointments());
+        root.add(tb, BorderLayout.SOUTH);
+        refreshAppointments();
+        return root;
+    }
+
+    private void refreshAppointments() {
+        DefaultTableModel m = (DefaultTableModel) appointmentsTable.getModel();
+        m.setRowCount(0);
+        for (Appointment a : AppointmentService.getInstance().listAll()) {
+            String doc = a.getStaffId();
+            if (this.currentUsername != null && !this.currentUsername.isBlank()) {
+                // show only appointments for this doctor
+                if (!this.currentUsername.equalsIgnoreCase(doc) && !doc.equalsIgnoreCase(this.currentUsername)) continue;
+            }
+            // Resolve patient display name when possible
+            String patientDisplay = a.getPatientId();
+            java.util.Optional<Model.Patient> pat = PatientService.getInstance().findById(a.getPatientId());
+            if (pat.isPresent()) {
+                Model.Patient pp = pat.get();
+                patientDisplay = (pp.getFirstName()==null?"":pp.getFirstName()) + " " + (pp.getLastName()==null?"":pp.getLastName());
+            }
+            // First column should be the patient ID (P001 style), not the appointment id
+            m.addRow(new Object[]{a.getPatientId(), patientDisplay, a.getStaffId(), dtf.format(a.getScheduledAt()), a.getReason(), a.getStatus().name()});
+        }
     }
 
     // REPORTS PANEL ----------------------------------------------------

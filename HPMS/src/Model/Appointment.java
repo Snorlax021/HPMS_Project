@@ -1,59 +1,47 @@
 package Model;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Appointment model linking patient and staff (optional during scheduling).
+ * Appointment model linking patient and doctor schedule.
  */
 public class Appointment {
-    private final String id;
+    private final String id; // appointment_id
     private final String patientId;
-    private final String staffId; // may be null if not assigned yet
-    private final LocalDateTime scheduledAt;
+    private final String doctorId; // required doctor reference
+    private final LocalDate scheduleDate;
+    private final LocalTime scheduleTime;
     private final String reason;
     private AppointmentStatus status;
     private final Instant createdAt;
 
-    public Appointment(String patientId, String staffId, LocalDateTime scheduledAt, String reason) {
+    public Appointment(String patientId, String doctorId, LocalDate scheduleDate, LocalTime scheduleTime, String reason) {
         this.id = UUID.randomUUID().toString();
         this.patientId = Objects.requireNonNull(patientId);
-        this.staffId = staffId;
-        this.scheduledAt = Objects.requireNonNull(scheduledAt);
+        this.doctorId = Objects.requireNonNull(doctorId);
+        this.scheduleDate = Objects.requireNonNull(scheduleDate);
+        this.scheduleTime = Objects.requireNonNull(scheduleTime);
         this.reason = reason;
-        this.status = AppointmentStatus.SCHEDULED;
+        this.status = AppointmentStatus.PENDING; // default to pending
         this.createdAt = Instant.now();
     }
 
-    public String getId() { 
-    	return id; 
-    	}
-    public String getPatientId() { 
-    	return patientId; 
-    	}
-    public String getStaffId() { 
-    	return staffId; 
-    	}
-    public LocalDateTime getScheduledAt() { 
-    	return scheduledAt; 
-    	}
-    public String getReason() { 
-    	return reason;
-    	}
-    public AppointmentStatus getStatus() { 
-    	return status; 
-    	}
-    public Instant getCreatedAt() { 
-    	return createdAt; 
-    	}
+    public String getId() { return id; }
+    public String getPatientId() { return patientId; }
+    public String getDoctorId() { return doctorId; }
+    public LocalDate getScheduleDate() { return scheduleDate; }
+    public LocalTime getScheduleTime() { return scheduleTime; }
+    public String getReason() { return reason; }
+    public AppointmentStatus getStatus() { return status; }
+    public Instant getCreatedAt() { return createdAt; }
 
-    public void setStatus(AppointmentStatus status) { 
-    	this.status = status; 
-    	}
+    public void setStatus(AppointmentStatus status) { this.status = Objects.requireNonNull(status); }
 
-    @Override public String toString() { 
-    	return "Appointment{" + id + " at " + scheduledAt + "}"; 
-    	}
+    @Override public String toString() {
+        return "Appointment{" + id + " on " + scheduleDate + " at " + scheduleTime + "}";
+    }
 }

@@ -17,9 +17,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import Service.PatientService;
+import Service.AppointmentService;
+import Service.UserService;
 import Model.Patient;
+import Model.User;
+import Model.Role;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.Period;
+import hospital.controller.StaffController;
 
 public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -30,9 +37,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private static final Color COLOR_PRIMARY_HOVER = new Color(80, 140, 220);
     private static final Color COLOR_ACTIVE = new Color(100, 160, 240);
     private static final Color COLOR_BORDER = new Color(210, 215, 220);
-    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 20);
-    private static final Font FONT_SECTION = new Font("Segoe UI", Font.BOLD, 16);
-    private static final Font FONT_NORMAL = new Font("Segoe UI", Font.PLAIN, 14);
+    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 22);
+    private static final Font FONT_SECTION = new Font("Segoe UI", Font.BOLD, 18);
+    private static final Font FONT_NORMAL = new Font("Segoe UI", Font.PLAIN, 16);
 
     private CardLayout cardLayout;
     private JPanel mainContentPanel;
@@ -47,6 +54,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
     private String currentUsername;
     private String subRole; // REGISTRATION, BILLING, LAB (optional)
+
+    // controller reference
+    private final StaffController staffController;
 
     // NEW: Keep a reference to the username label to toggle visibility
     private JLabel userTagLabel;
@@ -66,8 +76,10 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private JLabel lblPendingBills;
     private JLabel lblLabPending;
 
-    public StaffDashboardPanel(String username) { this(null, username); }
-    public StaffDashboardPanel(String subRole, String username) {
+    // Constructors (controller-first to avoid ambiguous String overloads)
+    public StaffDashboardPanel(StaffController controller, String username) { this(controller, null, username); }
+    public StaffDashboardPanel(StaffController controller, String subRole, String username) {
+        this.staffController = controller;
         this.currentUsername = username;
         this.subRole = subRole != null ? subRole.toUpperCase() : null;
         setBackground(COLOR_BG);
@@ -121,7 +133,7 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         sideNavPanel.setLayout(new BoxLayout(sideNavPanel, BoxLayout.Y_AXIS));
         sideNavPanel.setBackground(COLOR_SIDEBAR_BG);
         sideNavPanel.setBorder(new LineBorder(COLOR_BORDER));
-        sideNavPanel.setPreferredSize(new Dimension(190, 0));
+        sideNavPanel.setPreferredSize(new Dimension(260, 0));
 
         btnSummary = createNavButton("Summary", "SUMMARY");
         btnPatientReg = createNavButton("Patient Registration", "PATIENT_REG");
@@ -131,14 +143,16 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         btnAdmission = createNavButton("Admission & Discharge", "ADMISSION");
         JButton btnGuide = createNavButton("User Guide", "GUIDE");
 
-        sideNavPanel.add(Box.createVerticalStrut(6));
-        sideNavPanel.add(btnSummary);
-        sideNavPanel.add(btnPatientReg);
-        sideNavPanel.add(btnMedical);
-        sideNavPanel.add(btnBilling);
-        sideNavPanel.add(btnLab);
-        sideNavPanel.add(btnAdmission);
-        sideNavPanel.add(btnGuide);
+        // consistent spacing
+        int gap = 12;
+        sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnSummary); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnPatientReg); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnMedical); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnBilling); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnLab); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnAdmission); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnGuide); sideNavPanel.add(Box.createVerticalStrut(8));
         sideNavPanel.add(Box.createVerticalGlue());
         return sideNavPanel;
     }
@@ -146,7 +160,9 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private JButton createNavButton(String text, String card) {
         JButton b = new JButton(text);
         b.setAlignmentX(Component.CENTER_ALIGNMENT);
-        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        // taller buttons for consistent spacing with patient UI
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 64));
+        b.setPreferredSize(new Dimension(Integer.MAX_VALUE, 64));
         b.setFont(FONT_NORMAL);
         b.setBackground(Color.WHITE);
         b.setFocusPainted(false);
@@ -237,27 +253,51 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        JPanel topPanel = new JPanel(new BorderLayout());
+        // Top area: title (left), search (center-left), actions (right)
+        JPanel topPanel = new JPanel(new BorderLayout(8, 8));
         topPanel.setOpaque(false);
+
         JLabel header = new JLabel("Patient Registration & Records", SwingConstants.LEFT);
         header.setFont(FONT_SECTION);
         header.setForeground(COLOR_PRIMARY.darker());
-        header.setBorder(new EmptyBorder(0, 0, 8, 0));
-        topPanel.add(header, BorderLayout.NORTH);
+        header.setBorder(new EmptyBorder(0, 0, 0, 0));
+        topPanel.add(header, BorderLayout.WEST);
 
+        // Search in center
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchPanel.setOpaque(false);
         searchPanel.add(new JLabel("Search Patients:"));
         JTextField searchField = new JTextField(20);
         searchPanel.add(searchField);
-        topPanel.add(searchPanel, BorderLayout.SOUTH);
+        topPanel.add(searchPanel, BorderLayout.CENTER);
+
+        // Actions on the right aligned with the search field
+        JPanel actionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actionsPanel.setOpaque(false);
+        JButton btnAdd = new JButton("Add"); styleSecondaryButton(btnAdd); btnAdd.addActionListener(e -> openAddPatientDialog());
+        JButton btnView = new JButton("View"); styleSecondaryButton(btnView); btnView.addActionListener(e -> openViewPatientDialog());
+        JButton btnDeactivate = new JButton("Deactivate"); styleSecondaryButton(btnDeactivate); btnDeactivate.addActionListener(e -> openDeactivatePatientDialog());
+        JButton btnAssign = new JButton("Assign Appointment"); styleSecondaryButton(btnAssign); btnAssign.addActionListener(e -> openAssignAppointmentDialogForStaff());
+        // Slightly increase button sizes for visual balance
+        Dimension btnDim = new Dimension(160, 34);
+        btnAdd.setPreferredSize(new Dimension(80, 34));
+        btnView.setPreferredSize(new Dimension(80, 34));
+        btnDeactivate.setPreferredSize(new Dimension(110, 34));
+        btnAssign.setPreferredSize(new Dimension(180, 34));
+        actionsPanel.add(btnAdd); actionsPanel.add(btnView); actionsPanel.add(btnDeactivate); actionsPanel.add(btnAssign);
+
+        topPanel.add(actionsPanel, BorderLayout.EAST);
 
         root.add(topPanel, BorderLayout.NORTH);
 
-        // Removed ID column
-        String[] cols = {"Name", "Age", "Gender", "Status"};
-        Object[][] data = {{"John Doe", 45, "M", "Active"}, {"Jane Smith", 29, "F", "Inactive"}};
+        // Now include hidden ID column at index 0: {ID, Name, Age, Gender, Status}
+        String[] cols = {"ID", "Name", "Age", "Gender", "Status"};
+        Object[][] data = {{"p1", "John Doe", 45, "M", "Active"}, {"p2", "Jane Smith", 29, "F", "Inactive"}};
         patientRegTable = new JTable(new DefaultTableModel(data, cols));
+        // Hide ID column visually
+        patientRegTable.getColumnModel().getColumn(0).setMinWidth(0);
+        patientRegTable.getColumnModel().getColumn(0).setMaxWidth(0);
+        patientRegTable.getColumnModel().getColumn(0).setPreferredWidth(0);
 
         // Add search listener
         searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -267,13 +307,89 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         });
 
         root.add(new JScrollPane(patientRegTable), BorderLayout.CENTER);
-
-        JToolBar toolbar = new JToolBar(); toolbar.setFloatable(false);
-        styleToolbarButton(toolbar, "Add", this::openAddPatientDialog);
-        styleToolbarButton(toolbar, "View", this::openViewPatientDialog);
-        styleToolbarButton(toolbar, "Deactivate", this::openDeactivatePatientDialog);
-        root.add(toolbar, BorderLayout.SOUTH);
         return root;
+    }
+
+    // Assign appointment flow used by staff panel
+    private void openAssignAppointmentDialogForStaff() {
+        int row = patientRegTable.getSelectedRow();
+        if (row == -1) { warn("Select a patient first"); return; }
+        DefaultTableModel m = (DefaultTableModel) patientRegTable.getModel();
+        String patientId = (String) m.getValueAt(row, 0);
+        String patientName = (String) m.getValueAt(row, 1);
+
+        JPanel p = new JPanel(new GridLayout(5, 2, 8, 8));
+        p.setBorder(new EmptyBorder(10, 10, 10, 10));
+        p.add(new JLabel("Patient:")); JTextField patientField = new JTextField(patientName); patientField.setEditable(false); p.add(patientField);
+
+        // SPECIALTY -> doctor selection UI
+        p.add(new JLabel("Specialty:"));
+        String[] specialties = new String[]{"Any","Orthopedics","Cardiology","Pediatrics","General"};
+        JComboBox<String> specialtyCombo = new JComboBox<>(specialties);
+        p.add(specialtyCombo);
+
+        p.add(new JLabel("Doctor:"));
+        JComboBox<String> doctorCombo = new JComboBox<>();
+        doctorCombo.setEditable(false);
+        p.add(doctorCombo);
+
+        // Reason and datetime fields
+        p.add(new JLabel("Date & Time (YYYY-MM-DDTHH:MM):")); JTextField whenField = new JTextField(LocalDateTime.now().plusDays(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))); p.add(whenField);
+        p.add(new JLabel("Reason:")); JTextField reasonField = new JTextField(); p.add(reasonField);
+
+        // Build a small specialty mapping for demo doctor accounts available in UserService
+        java.util.Map<String, java.util.List<String>> specialtyToUsers = new java.util.LinkedHashMap<>();
+        for (String s : specialties) specialtyToUsers.put(s, new java.util.ArrayList<>());
+        // Collect doctor users from UserService
+        for (User u : UserService.getInstance().getAllUsers()) {
+            if (u == null) continue;
+            if (u.getRole() == Role.DOCTOR) {
+                String uname = u.getUsername();
+                // Demo mapping heuristics: drjohn -> Orthopedics, other "doctor" -> General
+                if ("drjohn".equalsIgnoreCase(uname)) specialtyToUsers.get("Orthopedics").add(uname);
+                else specialtyToUsers.get("General").add(uname);
+                // Also add to Any
+                specialtyToUsers.get("Any").add(uname);
+            }
+        }
+
+        // Populate doctor combo based on selected specialty
+        Runnable refreshDoctorCombo = () -> {
+            String sel = (String) specialtyCombo.getSelectedItem();
+            java.util.List<String> list = specialtyToUsers.getOrDefault(sel, new java.util.ArrayList<>());
+            doctorCombo.removeAllItems();
+            if (list.isEmpty()) {
+                doctorCombo.addItem("(No doctors available)");
+                doctorCombo.setEnabled(false);
+            } else {
+                for (String d : list) doctorCombo.addItem(d);
+                doctorCombo.setEnabled(true);
+            }
+        };
+        specialtyCombo.addActionListener(e -> refreshDoctorCombo.run());
+        // initial fill
+        refreshDoctorCombo.run();
+
+        int res = JOptionPane.showConfirmDialog(this, p, "Assign Appointment", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (res == JOptionPane.OK_OPTION) {
+            String doctor = (doctorCombo.getItemCount() > 0 && doctorCombo.isEnabled()) ? (String) doctorCombo.getSelectedItem() : null;
+            if (doctor != null && doctor.startsWith("(No doctors")) doctor = null;
+            if (doctor == null) { warn("No doctor selected or available for that specialty"); return; }
+            String whenStr = whenField.getText().trim();
+            String reason = reasonField.getText().trim();
+            if (doctor.isEmpty() || whenStr.isEmpty()) { warn("Doctor and date/time are required"); return; }
+            LocalDateTime when;
+            try { when = LocalDateTime.parse(whenStr, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")); }
+            catch (Exception ex) { warn("Invalid date/time format. Use YYYY-MM-DDTHH:MM"); return; }
+
+            // Schedule using selected doctor's username as staffId
+            try {
+                AppointmentService.getInstance().schedule(patientId, doctor, when, reason);
+                info("Appointment scheduled for " + patientName + " with " + doctor + " on " + when);
+            } catch (Exception ex) {
+                warn("Failed to schedule appointment: " + ex.getMessage());
+            }
+        }
     }
 
     // MEDICAL RECORDS -------------------------------------------------
@@ -495,35 +611,65 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
     // DIALOG METHODS (Patient Registration)
     private void openAddPatientDialog() {
-        JPanel panel = new JPanel(new GridLayout(7,2,8,8));
-        panel.setBorder(new EmptyBorder(10,10,10,10));
-        JTextField firstName = field(panel, "First Name:");
-        JTextField lastName = field(panel, "Last Name:");
-        JTextField dobField = field(panel, "DOB (YYYY-MM-DD):");
-        JTextField gender = field(panel, "Gender:");
-        JTextField phone = field(panel, "Phone:");
-        JTextField email = field(panel, "Email:");
-        JTextField address = field(panel, "Address:");
+        // Make the dialog larger and fields wider for easier input
+        JPanel panel = new JPanel(new GridLayout(7,2,10,10));
+        panel.setBorder(new EmptyBorder(14,14,14,14));
+        panel.setPreferredSize(new Dimension(720, 420));
+        JTextField firstName = new JTextField(); firstName.setColumns(30); panel.add(new JLabel("First Name:")); panel.add(firstName);
+        JTextField lastName = new JTextField(); lastName.setColumns(30); panel.add(new JLabel("Last Name:")); panel.add(lastName);
+        JTextField dobField = new JTextField(); dobField.setColumns(20); panel.add(new JLabel("DOB (YYYY-MM-DD):")); panel.add(dobField);
+        JTextField gender = new JTextField(); gender.setColumns(10); panel.add(new JLabel("Gender:")); panel.add(gender);
+        JTextField phone = new JTextField(); phone.setColumns(18); panel.add(new JLabel("Phone:")); panel.add(phone);
+        JTextField email = new JTextField(); email.setColumns(25); panel.add(new JLabel("Email:")); panel.add(email);
+        JTextField address = new JTextField(); address.setColumns(30); panel.add(new JLabel("Address:")); panel.add(address);
         int r = showDialog(panel, "Register New Patient");
         if (r == JOptionPane.OK_OPTION) {
             String fn = firstName.getText().trim();
             String ln = lastName.getText().trim();
-            if (fn.isEmpty() || ln.isEmpty()) { warn("First and last name are required"); return; }
-            LocalDate dob = null;
             String dobStr = dobField.getText().trim();
-            if (!dobStr.isEmpty()) {
-                try { dob = LocalDate.parse(dobStr); }
-                catch (Exception ex) { warn("DOB format should be YYYY-MM-DD"); return; }
+            String gen = gender.getText().trim();
+            String ph = phone.getText().trim();
+            String em = email.getText().trim();
+            String addr = address.getText().trim();
+
+            // Required fields: all of them (as requested)
+            java.util.List<String> missing = new java.util.ArrayList<>();
+            if (fn.isEmpty()) missing.add("First Name");
+            if (ln.isEmpty()) missing.add("Last Name");
+            if (dobStr.isEmpty()) missing.add("DOB");
+            if (gen.isEmpty()) missing.add("Gender");
+            if (ph.isEmpty()) missing.add("Phone");
+            if (em.isEmpty()) missing.add("Email");
+            if (addr.isEmpty()) missing.add("Address");
+            if (!missing.isEmpty()) { warn("Please fill required fields: " + String.join(", ", missing)); return; }
+
+            LocalDate dob = null;
+            try {
+                dob = LocalDate.parse(dobStr);
+            } catch (Exception ex) {
+                warn("DOB format should be YYYY-MM-DD"); return;
             }
+            // Disallow DOB in the future (no year beyond current year)
+            LocalDate today = LocalDate.now();
+            if (dob.isAfter(today)) { warn("DOB cannot be in the future."); return; }
+            if (dob.getYear() > today.getYear()) { warn("DOB year cannot be beyond " + today.getYear()); return; }
+
             PatientService ps = PatientService.getInstance();
-            Patient p = ps.createPatient(fn, ln, dob, gender.getText().trim(), phone.getText().trim(), email.getText().trim(), address.getText().trim());
-            // Update table view (no ID column)
+            Patient p;
+            try {
+                p = ps.createPatient(fn, ln, dob, gen, ph, em, addr);
+            } catch (RuntimeException ex) {
+                warn("Failed to create patient: " + ex.getMessage());
+                return;
+            }
+
+            // Update table view (now includes ID column)
             int age = 0;
             if (dob != null) {
                 try { age = Math.max(0, Period.between(dob, LocalDate.now()).getYears()); } catch (Exception ignored) {}
             }
             DefaultTableModel m = (DefaultTableModel) patientRegTable.getModel();
-            m.addRow(new Object[]{p.getFirstName() + " " + p.getLastName(), age, p.getGender(), "Active"});
+            m.addRow(new Object[]{p.getId(), p.getFirstName() + " " + p.getLastName(), age, p.getGender(), "Active"});
 
             // Show provisioned credentials
             ps.getProvisionedAccountForPatient(p.getId()).ifPresentOrElse(acc -> {
@@ -545,12 +691,12 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
     private void openViewPatientDialog() {
         int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}
         DefaultTableModel m=(DefaultTableModel)patientRegTable.getModel();
-        info(String.format("Name: %s\nAge: %s\nGender: %s\nStatus: %s",
-            m.getValueAt(row,0),m.getValueAt(row,1),m.getValueAt(row,2),m.getValueAt(row,3)));
+        info(String.format("ID: %s\nName: %s\nAge: %s\nGender: %s\nStatus: %s",
+            m.getValueAt(row,0), m.getValueAt(row,1), m.getValueAt(row,2), m.getValueAt(row,3), m.getValueAt(row,4)));
     }
     private void openDeactivatePatientDialog() {
         int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}
-        int c = confirm("Deactivate this patient?"); if (c==JOptionPane.YES_OPTION){ ((DefaultTableModel)patientRegTable.getModel()).setValueAt("Inactive", row, 3); info("Patient deactivated."); }
+        int c = confirm("Deactivate this patient?"); if (c==JOptionPane.YES_OPTION){ ((DefaultTableModel)patientRegTable.getModel()).setValueAt("Inactive", row, 4); info("Patient deactivated."); }
     }
 
     // MEDICAL RECORDS DIALOGS ----------------------------------------
@@ -650,8 +796,8 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
         if (query == null || query.trim().isEmpty()) {
             sorter.setRowFilter(null);
         } else {
-            // Search across Name (0), Gender (2), Status (3)
-            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 0, 2, 3));
+            // Search across Name (1), Gender (3), Status (4)
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query, 1, 3, 4));
         }
     }
 

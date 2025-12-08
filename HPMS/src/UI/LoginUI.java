@@ -3,6 +3,7 @@ package UI;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 
 import Model.Role;
 import Model.User;
@@ -25,30 +26,39 @@ public class LoginUI extends JFrame {
         this.userService.createDefaultDemoUsers();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setBounds(100, 100, 650, 500);
-        setResizable(false);
+        // start maximized/fullscreen and allow resizing
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
+        setResizable(true);
 
-        contentPane = new JPanel();
-        contentPane.setLayout(null);
+        // Use a BorderLayout so we can show a larger information panel alongside the login form
+        contentPane = new JPanel(new BorderLayout());
+        contentPane.setBorder(new EmptyBorder(0, 0, 20, 0));
         setContentPane(contentPane);
 
         JPanel panelTop = new JPanel();
         panelTop.setBackground(new Color(32, 118, 223));
-        panelTop.setBounds(0, 0, 634, 57);
-        contentPane.add(panelTop);
+        panelTop.setPreferredSize(new Dimension(0, 80));
+        contentPane.add(panelTop, BorderLayout.NORTH);
         panelTop.setLayout(null);
 
         JLabel lblHeader = new JLabel("HPMS - Login");
         lblHeader.setForeground(Color.WHITE);
-        lblHeader.setFont(new Font("Tahoma", Font.BOLD, 16));
-        lblHeader.setBounds(10, 11, 300, 35);
+        lblHeader.setFont(new Font("Tahoma", Font.BOLD, 20));
+        lblHeader.setBounds(20, 20, 400, 35);
         panelTop.add(lblHeader);
 
+        // center panel holds the login form (left) and info panel (right)
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setBorder(new EmptyBorder(30, 60, 30, 60));
+        contentPane.add(centerPanel, BorderLayout.CENTER);
+
+        // form panel (left)
         JPanel formPanel = new JPanel();
         formPanel.setBackground(new Color(173, 216, 230));
-        formPanel.setBounds(68, 110, 498, 294);
-        contentPane.add(formPanel);
+        formPanel.setPreferredSize(new Dimension(520, 400));
+        // keep null layout for existing coordinates so minimal changes needed
         formPanel.setLayout(null);
+        centerPanel.add(formPanel, BorderLayout.WEST);
 
         JLabel lblUser = new JLabel("Username:");
         lblUser.setFont(new Font("Tahoma", Font.BOLD, 15));
@@ -86,6 +96,17 @@ public class LoginUI extends JFrame {
         };
         usernameField.addKeyListener(enterToLogin);
         passwordField.addKeyListener(enterToLogin);
+
+        // informational panel (right)
+        JTextPane infoPane = new JTextPane();
+        infoPane.setEditable(false);
+        infoPane.setContentType("text/plain");
+        infoPane.setFont(new Font("Tahoma", Font.PLAIN, 14));
+        infoPane.setText(buildInfoText());
+
+        JScrollPane infoScroll = new JScrollPane(infoPane);
+        infoScroll.setBorder(BorderFactory.createTitledBorder("About HPMS"));
+        centerPanel.add(infoScroll, BorderLayout.CENTER);
     }
 
     // Convenience no-arg constructor
@@ -137,6 +158,37 @@ public class LoginUI extends JFrame {
                 "Startup Error",
                 JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private String buildInfoText() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Health Practice Management System (HPMS)\n\n");
+        sb.append("Overview:\n");
+        sb.append("  HPMS is a lightweight practice management application designed to help clinics manage patients, staff, appointments, and basic reporting.\n\n");
+
+        sb.append("Doctors:\n");
+        sb.append("  - Maintain doctor profiles (specialty, availability, contact).\n");
+        sb.append("  - Assign appointments and view schedule.\n\n");
+
+        sb.append("Staff:\n");
+        sb.append("  - Create and manage staff accounts with role-based access control.\n");
+        sb.append("  - Manage clinic resources and patient intake.\n\n");
+
+        sb.append("Patient Registration:\n");
+        sb.append("  - Register new patients with contact and medical details.\n");
+        sb.append("  - Update patient demographics and view history.\n\n");
+
+        sb.append("Appointment Scheduling:\n");
+        sb.append("  - Create, reschedule, and cancel appointments.\n");
+        sb.append("  - Book appointments by doctor, date, and available slots.\n\n");
+
+        sb.append("How to get started:\n");
+        sb.append("  1) Log in with your provided credentials or use demo accounts.\n");
+        sb.append("  2) Use the dashboard to access features according to your role (Patient/Staff/Admin).\n");
+        sb.append("  3) For demo purposes, sample users and data are created on first run.\n");
+
+        sb.append("\nFor support or feature requests, contact the development team.");
+        return sb.toString();
     }
 
     // Allow launching directly for testing/demo

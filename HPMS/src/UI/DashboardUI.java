@@ -7,6 +7,7 @@ import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import javax.swing.*;
+import hospital.controller.*;
 
 public class DashboardUI extends JFrame {
 
@@ -53,7 +54,7 @@ public class DashboardUI extends JFrame {
 
         JLabel logoLabel = new JLabel("LOGO HERE");
         logoLabel.setForeground(Color.WHITE);
-        logoLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        logoLabel.setFont(new Font("Arial", Font.BOLD, 25));
         panel.add(logoLabel, BorderLayout.WEST);
 
         JLabel titleLabel = new JLabel("HPMS: Hospital Patient Management System");
@@ -69,13 +70,13 @@ public class DashboardUI extends JFrame {
         JLabel roleLabel = new JLabel(roleDisplay.toUpperCase());
         roleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         roleLabel.setForeground(Color.WHITE);
-        roleLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        roleLabel.setFont(new Font("Arial", Font.BOLD, 18));
         rightPanel.add(roleLabel);
 
         if (currentUsername != null && !currentUsername.isBlank()) {
             JLabel userLabel = new JLabel("Logged in: " + currentUsername);
             userLabel.setForeground(Color.WHITE);
-            userLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+            userLabel.setFont(new Font("Arial", Font.PLAIN, 20));
             rightPanel.add(userLabel);
         }
 
@@ -125,17 +126,17 @@ public class DashboardUI extends JFrame {
         String upper = role.toUpperCase();
         switch (upper) {
             case "ADMIN":
-                return new AdminDashboardPanel(currentUsername);
+                return new AdminDashboardPanel((hospital.controller.AdminController) null, currentUsername);
             case "DOCTOR":
-                return new DoctorDashboardPanel(currentUsername);
+                return new DoctorDashboardPanel((hospital.controller.DoctorController) null, currentUsername);
             case "STAFF":
-                return new StaffDashboardPanel(currentUsername);
+                return new StaffDashboardPanel((hospital.controller.StaffController) null, currentUsername);
             case "USER":
-                return new PatientDashboardPanel(currentUsername);
+                return new PatientDashboardPanel((hospital.controller.PatientController) null, currentUsername);
             default:
                 if (upper.startsWith("STAFF:")) {
                     String subRole = upper.substring("STAFF:".length());
-                    return new StaffDashboardPanel(subRole, currentUsername);
+                    return new StaffDashboardPanel((hospital.controller.StaffController) null, subRole, currentUsername);
                 }
                 JOptionPane.showMessageDialog(this, "Unknown role: " + role + ". Defaulting to basic view.", "Warning", JOptionPane.WARNING_MESSAGE);
                 return new JPanel();
