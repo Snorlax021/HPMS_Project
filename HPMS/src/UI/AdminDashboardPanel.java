@@ -19,6 +19,7 @@ import javax.swing.event.*;
 import Model.Role;
 import Model.User;
 import Service.UserService;
+import Service.PatientService;
 import Service.DoctorServiceImpl;
 import Model.Doctor;
 import java.time.LocalDate;
@@ -27,7 +28,7 @@ import java.io.File;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
-import Service.PatientService;
+import UI.DeactivatedAccountsPanel;
 
 public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -144,6 +145,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         btnPayments = createNavButton("Payments", "PAYMENTS");
         btnSummary = createNavButton("Summary", "SUMMARY");
         btnDeactivated = createNavButton("Deactivated Accounts", "DEACTIVATED");
+        // hospital logs removed
         JButton btnDoctors = createNavButton("Doctor Management", "DOCTORS");
         JButton btnStaffMgmt = createNavButton("Staff Management", "STAFF_MGMT");
         JButton btnPatientMgmt = createNavButton("Patient Management", "PATIENT_MGMT");
@@ -155,6 +157,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
          sideNavPanel.add(btnPayments); sideNavPanel.add(Box.createVerticalStrut(gap));
          sideNavPanel.add(btnSummary); sideNavPanel.add(Box.createVerticalStrut(gap));
          sideNavPanel.add(btnDeactivated); sideNavPanel.add(Box.createVerticalStrut(gap));
+         // hospital logs removed from sidebar
          sideNavPanel.add(btnDoctors); sideNavPanel.add(Box.createVerticalStrut(gap));
          sideNavPanel.add(btnStaffMgmt); sideNavPanel.add(Box.createVerticalStrut(gap));
          sideNavPanel.add(btnPatientMgmt); sideNavPanel.add(Box.createVerticalStrut(gap));
@@ -207,6 +210,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.add(buildPaymentPanel(), "PAYMENTS");
         mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
         mainContentPanel.add(new DeactivatedAccountsPanel(), "DEACTIVATED");
+        // hospital logs panel removed
         // Doctor management
         doctorPanel = new DoctorManagementPanel();
         mainContentPanel.add(doctorPanel, "DOCTORS");
@@ -299,9 +303,10 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0)); actionPanel.setOpaque(false);
         JButton bAdd = new JButton("Add User"); styleSecondaryButton(bAdd); bAdd.addActionListener(e -> openAddUserDialog());
         JButton bEdit = new JButton("Edit"); styleSecondaryButton(bEdit); bEdit.addActionListener(e -> openEditUserDialog());
+        JButton bReset = new JButton("Reset PW"); styleSecondaryButton(bReset); bReset.addActionListener(e -> openResetPasswordDialog());
         JButton bDeactivate = new JButton("Deactivate"); styleSecondaryButton(bDeactivate); bDeactivate.addActionListener(e -> openDeactivateUserDialog());
-        JButton bReset = new JButton("Reset Password"); styleSecondaryButton(bReset); bReset.addActionListener(e -> openResetPasswordDialog());
-        actionPanel.add(bDeactivate); actionPanel.add(bEdit); actionPanel.add(bReset); actionPanel.add(bAdd);
+        JButton bExport = new JButton("Export"); styleSecondaryButton(bExport); bExport.addActionListener(e -> openExportDialog());
+        actionPanel.add(bAdd); actionPanel.add(bEdit); actionPanel.add(bReset); actionPanel.add(bDeactivate); actionPanel.add(bExport);
         topPanel.add(actionPanel, BorderLayout.EAST);
 
         root.add(topPanel, BorderLayout.NORTH);
@@ -550,7 +555,7 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
             GridBagConstraints idgbc = new GridBagConstraints(); idgbc.insets = new Insets(6,6,6,6); idgbc.fill = GridBagConstraints.HORIZONTAL; idgbc.gridx=0; idgbc.gridy=0;
             JComboBox<String> idType = new JComboBox<>(new String[]{"National ID","PhilHealth","Driver's License","Passport","Other"});
             JTextField idNumber = new JTextField(); idNumber.setPreferredSize(contactPref);
-            JCheckBox minorCheck = new JCheckBox("Minor (under 18) — allow Student ID instead (optional)");
+            JCheckBox minorCheck = new JCheckBox("Minor (under 18)  allow Student ID instead (optional)");
             JTextField studentIdField = new JTextField(); studentIdField.setPreferredSize(contactPref); studentIdField.setEnabled(false);
             idgbc.gridx=0; idBlock.add(new JLabel("ID Type:"), idgbc); idgbc.gridx=1; idBlock.add(idType, idgbc); idgbc.gridy++;
             idgbc.gridx=0; idBlock.add(new JLabel("ID Number:"), idgbc); idgbc.gridx=1; idBlock.add(idNumber, idgbc); idgbc.gridy++;
@@ -625,6 +630,52 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
                                 // optional: parse PRC expiry
                                 try { if (!prcExpiryField.getText().trim().isEmpty()) d.setLicenseExpiry(LocalDate.parse(prcExpiryField.getText().trim())); } catch (Exception ignored) {}
                                 DoctorServiceImpl.getInstance().save(d);
+                                // After creating doctor record, prompt for availability schedule
+                                SwingUtilities.invokeLater(() -> {
+                                    JPanel schedPanel = new JPanel(new BorderLayout(8,8));
+                                    DefaultListModel<String> lm = new DefaultListModel<>();
+                                    JList<String> slotList = new JList<>(lm);
+                                    JPanel entry = new JPanel(new GridLayout(1,6,6,6));
+                                    JComboBox<java.time.DayOfWeek> dayBox = new JComboBox<>(java.time.DayOfWeek.values());
+                                    JTextField startField = new JTextField("09:00");
+                                    JTextField endField = new JTextField("17:00");
+                                    JButton addSlot = new JButton("Add Slot");
+                                    JButton removeSlot = new JButton("Remove Selected");
+                                    entry.add(new JLabel("Day:")); entry.add(dayBox); entry.add(new JLabel("Start (HH:mm):")); entry.add(startField); entry.add(new JLabel("End (HH:mm):")); entry.add(endField);
+                                    JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT)); controls.add(addSlot); controls.add(removeSlot);
+                                    schedPanel.add(entry, BorderLayout.NORTH); schedPanel.add(new JScrollPane(slotList), BorderLayout.CENTER); schedPanel.add(controls, BorderLayout.SOUTH);
+
+                                    addSlot.addActionListener(ae -> {
+                                        try {
+                                            java.time.DayOfWeek dow = (java.time.DayOfWeek) dayBox.getSelectedItem();
+                                            java.time.LocalTime st = java.time.LocalTime.parse(startField.getText().trim());
+                                            java.time.LocalTime et = java.time.LocalTime.parse(endField.getText().trim());
+                                            if (!et.isAfter(st)) { JOptionPane.showMessageDialog(this, "End time must be after start time."); return; }
+                                            String label = dow.name() + " " + st.toString() + "-" + et.toString();
+                                            lm.addElement(label);
+                                        } catch (Exception ex) { JOptionPane.showMessageDialog(this, "Invalid time format. Use HH:mm."); }
+                                    });
+                                    removeSlot.addActionListener(ae -> { int i = slotList.getSelectedIndex(); if (i!=-1) lm.remove(i); });
+
+                                    int res2 = JOptionPane.showConfirmDialog(this, schedPanel, "Enter Availability for " + u.getFullName(), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                                    if (res2 == JOptionPane.OK_OPTION) {
+                                        // persist each slot to DoctorScheduleService
+                                        for (int i=0;i<lm.getSize();i++) {
+                                            String s = lm.getElementAt(i);
+                                            try {
+                                                String[] parts = s.split(" ",2);
+                                                java.time.DayOfWeek dow = java.time.DayOfWeek.valueOf(parts[0]);
+                                                String[] times = parts[1].split("-");
+                                                java.time.LocalTime st = java.time.LocalTime.parse(times[0]);
+                                                java.time.LocalTime et = java.time.LocalTime.parse(times[1]);
+                                                Model.DoctorSchedule ds = new Model.DoctorSchedule(d, dow, st, et, true);
+                                                // Use reflection to call DoctorScheduleService.save if available (avoid compile-time dependency)
+                                                saveDoctorSchedule(ds);
+                                            } catch (Exception ex) { /* ignore badly formatted entry */ }
+                                        }
+                                        if (doctorPanel != null) doctorPanel.reload();
+                                    }
+                                });
                                 if (doctorPanel != null) doctorPanel.reload();
                             } catch (Exception ignored) {}
                         });
@@ -654,13 +705,121 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         }
 
         if (chosen == Role.PATIENT) {
-            // Open the unified patient registration dialog (auto-generates credentials)
-            PatientRegistrationDialog.Result res = PatientRegistrationDialog.showDialog(this);
-            // After dialog closes, refresh tables if a patient/user was created
-            if (res != null && res.patient != null) {
-                reloadUsersTable();
-                if (patientPanel != null) patientPanel.reloadPanel();
-            }
+            // Build a two-column patient form similar in style to the Doctor/Staff form above
+            JPanel container = new JPanel(new BorderLayout(12,12));
+            container.setBorder(new EmptyBorder(8,8,8,8));
+
+            JPanel left = new JPanel(); left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS)); left.setBackground(Color.WHITE);
+            JPanel right = new JPanel(); right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS)); right.setBackground(Color.WHITE);
+
+            // Personal block (left)
+            JPanel personal = new JPanel(new GridBagLayout());
+            personal.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(COLOR_BORDER), "Personal & Contact"));
+            personal.setBackground(Color.WHITE);
+            GridBagConstraints pgbc = new GridBagConstraints(); pgbc.insets = new Insets(6,6,6,6); pgbc.fill = GridBagConstraints.HORIZONTAL; pgbc.gridx=0; pgbc.gridy=0;
+            JTextField surenameField = new JTextField(); JTextField nameField = new JTextField(); JTextField middleField = new JTextField();
+            JTextField dobField = new JTextField(); JComboBox<String> genderBox = new JComboBox<>(new String[]{"Male","Female","Other"});
+            JTextField nationalityField = new JTextField();
+            BiConsumer<String, Component> addP = (lbl, comp) -> { pgbc.gridx=0; pgbc.weightx=0; personal.add(new JLabel(lbl), pgbc); pgbc.gridx=1; pgbc.weightx=1; personal.add(comp, pgbc); pgbc.gridy++; };
+            addP.accept("Surname:", surenameField); addP.accept("Given Name:", nameField); addP.accept("Middle Name:", middleField); addP.accept("DOB (YYYY-MM-DD):", dobField);
+            addP.accept("Sex/Gender:", genderBox); addP.accept("Nationality:", nationalityField);
+
+            // Contact block (left)
+            Dimension contactPref = new Dimension(420, 28);
+            JPanel contact = new JPanel(new GridBagLayout());
+            contact.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(COLOR_BORDER), "Contact"));
+            contact.setBackground(Color.WHITE);
+            GridBagConstraints cgbc = new GridBagConstraints(); cgbc.insets = new Insets(6,6,6,6); cgbc.fill = GridBagConstraints.HORIZONTAL; cgbc.gridx=0; cgbc.gridy=0;
+            JTextField emailField = new JTextField(); emailField.setPreferredSize(contactPref);
+            JTextField contactField = new JTextField(); contactField.setPreferredSize(contactPref);
+            JTextField addressField = new JTextField(); addressField.setPreferredSize(contactPref);
+            JTextField emergencyNameField = new JTextField(); emergencyNameField.setPreferredSize(contactPref);
+            JTextField emergencyContactField = new JTextField(); emergencyContactField.setPreferredSize(contactPref);
+            BiConsumer<String, Component> addC = (lbl, comp) -> { cgbc.gridx=0; cgbc.weightx=0; contact.add(new JLabel(lbl), cgbc); cgbc.gridx=1; cgbc.weightx=1; contact.add(comp, cgbc); cgbc.gridy++; };
+            addC.accept("Email:", emailField); addC.accept("Contact Number:", contactField); addC.accept("Address:", addressField);
+            addC.accept("Emergency Contact Name:", emergencyNameField); addC.accept("Emergency Contact Number:", emergencyContactField);
+
+            left.add(personal); left.add(Box.createVerticalStrut(8)); left.add(contact);
+
+            // Identification & Medical (right)
+            JPanel idBlock = new JPanel(new GridBagLayout());
+            idBlock.setBackground(Color.WHITE);
+            idBlock.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(COLOR_BORDER), "Identification / Medical"));
+            GridBagConstraints idgbc = new GridBagConstraints(); idgbc.insets = new Insets(6,6,6,6); idgbc.fill = GridBagConstraints.HORIZONTAL; idgbc.gridx=0; idgbc.gridy=0;
+            JComboBox<String> idType = new JComboBox<>(new String[]{"National ID","PhilHealth","Driver's License","Passport","Other"});
+            JTextField idNumber = new JTextField(); idNumber.setPreferredSize(contactPref);
+            JCheckBox minorCheck = new JCheckBox("Minor (under 18)");
+            JTextField studentIdField = new JTextField(); studentIdField.setPreferredSize(contactPref); studentIdField.setEnabled(false);
+            idgbc.gridx=0; idBlock.add(new JLabel("ID Type:"), idgbc); idgbc.gridx=1; idBlock.add(idType, idgbc); idgbc.gridy++;
+            idgbc.gridx=0; idBlock.add(new JLabel("ID Number:"), idgbc); idgbc.gridx=1; idBlock.add(idNumber, idgbc); idgbc.gridy++;
+            idgbc.gridx=0; idBlock.add(minorCheck, idgbc); idgbc.gridy++; idgbc.gridwidth=1;
+            idgbc.gridx=0; idBlock.add(new JLabel("Student ID (if minor):"), idgbc); idgbc.gridx=1; idBlock.add(studentIdField, idgbc); idgbc.gridy++;
+            minorCheck.addActionListener(e -> { boolean isMinor = minorCheck.isSelected(); idType.setEnabled(!isMinor); idNumber.setEnabled(!isMinor); studentIdField.setEnabled(isMinor); });
+
+            JPanel medical = new JPanel(new GridBagLayout()); medical.setBackground(Color.WHITE);
+            medical.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(COLOR_BORDER), "Medical"));
+            GridBagConstraints mgbc = new GridBagConstraints(); mgbc.insets = new Insets(6,6,6,6); mgbc.fill = GridBagConstraints.HORIZONTAL; mgbc.gridx=0; mgbc.gridy=0;
+            JTextField bloodTypeField = new JTextField(); JTextArea allergiesField = new JTextArea(4,20); allergiesField.setLineWrap(true); allergiesField.setWrapStyleWord(true);
+            medical.add(new JLabel("Blood Type:"), mgbc); mgbc.gridx=1; mgbc.weightx=1; medical.add(bloodTypeField, mgbc); mgbc.gridy++; mgbc.gridx=0; mgbc.weightx=0;
+            medical.add(new JLabel("Allergies / Conditions:"), mgbc); mgbc.gridx=1; mgbc.weightx=1; medical.add(new JScrollPane(allergiesField), mgbc); mgbc.gridy++;
+
+            // System / account block
+            JPanel sys = new JPanel(new GridBagLayout()); sys.setBackground(Color.WHITE);
+            sys.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(COLOR_BORDER), "System / Account"));
+            GridBagConstraints sgbc = new GridBagConstraints(); sgbc.insets = new Insets(6,6,6,6); sgbc.fill = GridBagConstraints.HORIZONTAL; sgbc.gridx=0; sgbc.gridy=0;
+            JTextField usernameField = new JTextField(); JPasswordField passwordField = new JPasswordField(); JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Active","Inactive","Pending Approval"});
+            sgbc.gridx=0; sgbc.weightx=0; sys.add(new JLabel("Username (opt):"), sgbc); sgbc.gridx=1; sgbc.weightx=1; sys.add(usernameField, sgbc); sgbc.gridy++;
+            sgbc.gridx=0; sys.add(new JLabel("Password:"), sgbc); sgbc.gridx=1; sys.add(passwordField, sgbc); sgbc.gridy++;
+            sgbc.gridx=0; sys.add(new JLabel("Status:"), sgbc); sgbc.gridx=1; sys.add(statusCombo, sgbc); sgbc.gridy++;
+
+            right.add(idBlock); right.add(Box.createVerticalStrut(8)); right.add(medical); right.add(Box.createVerticalStrut(8)); right.add(sys);
+
+            container.add(left, BorderLayout.WEST); container.add(right, BorderLayout.CENTER);
+
+            JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Patient Registration (Admin)", Dialog.ModalityType.APPLICATION_MODAL);
+            dlg.getContentPane().setLayout(new BorderLayout());
+            dlg.getContentPane().add(new JScrollPane(container), BorderLayout.CENTER);
+            JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton cancelB = new JButton("Cancel"); JButton saveB = new JButton("Save");
+            foot.add(cancelB); foot.add(saveB);
+            dlg.getContentPane().add(foot, BorderLayout.SOUTH);
+            dlg.setSize(900,700); dlg.setLocationRelativeTo(this);
+
+            saveB.addActionListener(e -> {
+                String surename = surenameField.getText().trim();
+                String given = nameField.getText().trim();
+                String uname = usernameField.getText().trim();
+                char[] pw = passwordField.getPassword();
+                if (given.isEmpty() || surename.isEmpty() || (uname.isEmpty() && pw.length==0)) {
+                    JOptionPane.showMessageDialog(dlg, "Please provide at minimum a surname, name and a password (or specify username).", "Validation", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                if (uname.isEmpty()) {
+                    String base = (surename + given).toLowerCase().replaceAll("[^a-z0-9]+", "");
+                    String candidate = base; int attempt = 0; while (userService.findByUsername(candidate).isPresent()) { attempt++; candidate = base + attempt; if (attempt>1000) break; }
+                    uname = candidate;
+                }
+                try {
+                    userService.createUser(uname, pw, Role.PATIENT);
+                    Arrays.fill(pw, '\0');
+                    // create patient profile
+                    // parse DOB if provided (expects YYYY-MM-DD)
+                    LocalDate dob = null;
+                    String dobTxt = dobField.getText().trim();
+                    if (!dobTxt.isEmpty()) {
+                        try { dob = LocalDate.parse(dobTxt); } catch (Exception dex) { JOptionPane.showMessageDialog(dlg, "Invalid DOB format. Use YYYY-MM-DD.", "Validation", JOptionPane.WARNING_MESSAGE); return; }
+                    }
+                    PatientService.getInstance().createPatientForUser(userService.findByUsername(uname).orElseThrow(), given, surename, dob, genderBox.getSelectedItem()==null?null:genderBox.getSelectedItem().toString(), contactField.getText().trim(), addressField.getText().trim());
+                     if (patientPanel != null) patientPanel.reloadPanel();
+                     reloadUsersTable();
+                     JOptionPane.showMessageDialog(dlg, "Patient registered (username: " + uname + ")", "Success", JOptionPane.INFORMATION_MESSAGE);
+                     dlg.dispose();
+                 } catch (IllegalArgumentException ex) {
+                     JOptionPane.showMessageDialog(dlg, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                 }
+             });
+            cancelB.addActionListener(e -> dlg.dispose());
+            dlg.setVisible(true);
             return;
         }
 
@@ -688,6 +847,29 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
                         try {
                             Doctor d = new Doctor(u);
                             DoctorServiceImpl.getInstance().save(d);
+                            // prompt availability (simple single-slot dialog for fallback path)
+                            SwingUtilities.invokeLater(() -> {
+                                JPanel sp = new JPanel(new GridLayout(0,2,6,6));
+                                JComboBox<java.time.DayOfWeek> dayBox = new JComboBox<>(java.time.DayOfWeek.values());
+                                JTextField startField = new JTextField("09:00");
+                                JTextField endField = new JTextField("17:00");
+                                sp.add(new JLabel("Day:")); sp.add(dayBox);
+                                sp.add(new JLabel("Start (HH:mm):")); sp.add(startField);
+                                sp.add(new JLabel("End (HH:mm):")); sp.add(endField);
+                                int r = JOptionPane.showConfirmDialog(this, sp, "Doctor Availability (optional)", JOptionPane.OK_CANCEL_OPTION);
+                                if (r==JOptionPane.OK_OPTION) {
+                                    try {
+                                        java.time.DayOfWeek dow = (java.time.DayOfWeek) dayBox.getSelectedItem();
+                                        java.time.LocalTime st = java.time.LocalTime.parse(startField.getText().trim());
+                                        java.time.LocalTime et = java.time.LocalTime.parse(endField.getText().trim());
+                                        if (et.isAfter(st)) {
+                                            Model.DoctorSchedule ds = new Model.DoctorSchedule(d, dow, st, et, true);
+                                            // Use reflection to call DoctorScheduleService.save if available (avoid compile-time dependency)
+                                            saveDoctorSchedule(ds);
+                                        }
+                                    } catch (Exception ex) { /* ignore */ }
+                                }
+                            });
                             if (doctorPanel != null) doctorPanel.reload();
                         } catch (Exception ignored) {}
                     } else if (rsel == Role.STAFF) {
@@ -1026,5 +1208,21 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
             }
 
         }, () -> JOptionPane.showMessageDialog(this, "User not found.", "Error", JOptionPane.ERROR_MESSAGE));
+    }
+
+    // Hospital logs / announcements feature removed per user request.
+    // Previously this file included `buildHospitalLogsPanel()` and a "Hospital Logs" sidebar button; both were removed.
+
+    // Reflection helper: attempt to persist a DoctorSchedule if the Service class exists at runtime.
+    private void saveDoctorSchedule(Object ds) {
+        try {
+            Class<?> cls = Class.forName("Service.DoctorScheduleService");
+            java.lang.reflect.Method getInstance = cls.getMethod("getInstance");
+            Object inst = getInstance.invoke(null);
+            java.lang.reflect.Method save = cls.getMethod("save", ds.getClass());
+            save.invoke(inst, ds);
+        } catch (Throwable ignored) {
+            // Service not present or call failed; ignore to keep UI functional.
+        }
     }
 }

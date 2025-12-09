@@ -61,6 +61,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
     private JTable patientsTable;
     private JTable reportsTable;
     private JTable appointmentsTable;
+    private JTable requestsTable;
     private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     // Global search/filter state
     private String globalSearchQuery;
@@ -84,6 +85,30 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
 
         // Default view
         setActiveButton(btnDashboard, "DASHBOARD");
+
+        // Show any queued notifications for this user (doctor/staff/patient)
+        SwingUtilities.invokeLater(this::checkNotifications);
+    }
+
+    private void checkNotifications() {
+        if (this.currentUsername == null || this.currentUsername.isBlank()) return;
+        try {
+            Class<?> cls = Class.forName("Service.NotificationService");
+            java.lang.reflect.Method getInst = cls.getMethod("getInstance");
+            Object inst = getInst.invoke(null);
+            java.lang.reflect.Method getAndClear = cls.getMethod("getAndClearNotifications", String.class);
+            Object notes = getAndClear.invoke(inst, this.currentUsername);
+            if (notes instanceof java.util.List) {
+                java.util.List<?> list = (java.util.List<?>) notes;
+                if (!list.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (Object n : list) sb.append("- ").append(n == null ? "" : n.toString()).append("\n");
+                    JOptionPane.showMessageDialog(this, sb.toString(), "Notifications", JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        } catch (Throwable ignored) {
+            // ignore if notification service not available
+        }
     }
 
     private JComponent createHeader() {
@@ -125,6 +150,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         btnDashboard = createNavButton("Summary", "DASHBOARD");
         btnPatients = createNavButton("Patients", "PATIENTS");
         btnReports = createNavButton("Reports", "REPORTS");
+        JButton btnRequests = createNavButton("Appointment Requests", "REQUESTS");
         JButton btnAppointments = createNavButton("Appointments", "APPOINTMENTS");
         // Initialize Summary button properly
         btnSummary = createNavButton("Patient Detail", "SUMMARY");
@@ -136,6 +162,7 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         sideNavPanel.add(btnDashboard); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnPatients); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnReports); sideNavPanel.add(Box.createVerticalStrut(gap));
+        sideNavPanel.add(btnRequests); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnAppointments); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnSummary); sideNavPanel.add(Box.createVerticalStrut(gap));
         sideNavPanel.add(btnDoctors); sideNavPanel.add(Box.createVerticalStrut(gap));
@@ -182,8 +209,9 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
 
         mainContentPanel.add(buildDashboardPanel(), "DASHBOARD");
         mainContentPanel.add(buildPatientsPanel(), "PATIENTS");
-        mainContentPanel.add(buildAppointmentsPanel(), "APPOINTMENTS");
         mainContentPanel.add(buildReportsPanel(), "REPORTS");
+        mainContentPanel.add(buildAppointmentRequestsPanel(), "REQUESTS");
+        mainContentPanel.add(buildAppointmentsPanel(), "APPOINTMENTS");
         mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
         mainContentPanel.add(buildGuidePanel(), "GUIDE");
         mainContentPanel.add(new UI.DoctorManagementPanel(), "DOCTORS");
@@ -260,10 +288,13 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         topPanel.add(actionPanel, BorderLayout.EAST);
         root.add(topPanel, BorderLayout.NORTH);
 
-        // Table setup
-        String[] cols = {"ID", "Name", "Age", "Condition"};
-        Object[][] data = {{1, "Alice Johnson", 45, "Hypertension"}, {2, "Bob Lee", 32, "Diabetes"}};
-        patientsTable = new JTable(new DefaultTableModel(data, cols));
+        // Table setup - fully backed by PatientService and matching Admin's columns
+        String[] cols = {"ID", "Name", "DOB", "Gender", "Phone"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) { @Override public boolean isCellEditable(int r,int c){ return false; } };
+        patientsTable = new JTable(model);
+
+        // Populate from PatientService
+        reloadPatientsTable();
 
         // Add search listener
         searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -276,6 +307,14 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         return root;
     }
 
+    private void reloadPatientsTable() {
+        DefaultTableModel m = (DefaultTableModel) patientsTable.getModel();
+        m.setRowCount(0);
+        for (Model.Patient p : PatientService.getInstance().listAll()) {
+            m.addRow(new Object[]{p.getId(), (p.getFirstName()==null?"":p.getFirstName()) + " " + (p.getLastName()==null?"":p.getLastName()), p.getDateOfBirth(), p.getGender(), p.getContactNumber()});
+        }
+    }
+
     // APPOINTMENTS PANEL -----------------------------------------------
     private JPanel buildAppointmentsPanel() {
         JPanel root = new JPanel(new BorderLayout(8,8));
@@ -284,12 +323,18 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         // top area: header (left), search (center), actions (right)
         JPanel topAppPanel = new JPanel(new BorderLayout(8,8)); topAppPanel.setOpaque(false);
         JLabel appHeader = new JLabel("Appointments", SwingConstants.LEFT); appHeader.setFont(FONT_SECTION); appHeader.setForeground(COLOR_PRIMARY.darker()); topAppPanel.add(appHeader, BorderLayout.WEST);
-        JPanel appActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); appActionPanel.setOpaque(false); JButton btnRefreshAppts = new JButton("Refresh"); styleSecondaryButton(btnRefreshAppts); btnRefreshAppts.addActionListener(e -> refreshAppointments()); appActionPanel.add(btnRefreshAppts); topAppPanel.add(appActionPanel, BorderLayout.EAST);
+        JPanel appActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); appActionPanel.setOpaque(false);
+        JButton btnRefreshAppts = new JButton("Refresh"); styleSecondaryButton(btnRefreshAppts); btnRefreshAppts.addActionListener(e -> refreshAppointments()); appActionPanel.add(btnRefreshAppts);
+        JButton btnAcceptAppt = new JButton("Accept Appointment"); styleSecondaryButton(btnAcceptAppt); btnAcceptAppt.addActionListener(e -> acceptSelectedAppointment()); appActionPanel.add(btnAcceptAppt);
+        JButton btnCancelAppt = new JButton("Cancel Appointment"); styleSecondaryButton(btnCancelAppt); btnCancelAppt.addActionListener(e -> cancelSelectedAppointment()); appActionPanel.add(btnCancelAppt);
+        topAppPanel.add(appActionPanel, BorderLayout.EAST);
         root.add(topAppPanel, BorderLayout.NORTH);
 
-        String[] cols = {"Patient ID","Patient","Doctor","When","Reason","Status"};
+        // Include appointment id (hidden/visible) to allow cancellation by id
+        String[] cols = {"Appt ID", "Patient ID","Patient","Doctor","When","Reason","Status"};
         Object[][] data = {};
         appointmentsTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
+        // Optionally hide the Appt ID column width
         root.add(new JScrollPane(appointmentsTable), BorderLayout.CENTER);
 
         refreshAppointments();
@@ -312,37 +357,31 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
                 Model.Patient pp = pat.get();
                 patientDisplay = (pp.getFirstName()==null?"":pp.getFirstName()) + " " + (pp.getLastName()==null?"":pp.getLastName());
             }
-            // First column should be the patient ID (P001 style), not the appointment id
-            m.addRow(new Object[]{a.getPatientId(), patientDisplay, a.getStaffId(), dtf.format(a.getScheduledAt()), a.getReason(), a.getStatus().name()});
+            // First column is appointment id to allow cancel by id
+            m.addRow(new Object[]{a.getId(), a.getPatientId(), patientDisplay, a.getStaffId(), dtf.format(a.getScheduledAt()), a.getReason(), a.getStatus().name()});
         }
+        // Attempt to hide the Appt ID column visually (best-effort)
+        try {
+            appointmentsTable.getColumnModel().getColumn(0).setMinWidth(0);
+            appointmentsTable.getColumnModel().getColumn(0).setMaxWidth(0);
+            appointmentsTable.getColumnModel().getColumn(0).setWidth(0);
+        } catch (Exception ignored) {}
     }
 
-    // REPORTS PANEL ----------------------------------------------------
-    private JPanel buildReportsPanel() {
-        JPanel root = new JPanel(new BorderLayout(8, 8));
-        root.setBackground(COLOR_BG);
-        root.setBorder(new EmptyBorder(12, 12, 12, 12));
-
-        // Top area: header (left), search (center), actions (right)
-        JPanel reportsTop = new JPanel(new BorderLayout(8,8)); reportsTop.setOpaque(false);
-        JLabel repHeader = new JLabel("Reports History", SwingConstants.LEFT); repHeader.setFont(FONT_SECTION); repHeader.setForeground(COLOR_PRIMARY.darker()); reportsTop.add(repHeader, BorderLayout.WEST);
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchPanel.setOpaque(false); searchPanel.add(new JLabel("Search Reports:")); JTextField searchField = new JTextField(20); searchPanel.add(searchField); reportsTop.add(searchPanel, BorderLayout.CENTER);
-        JPanel reportsAction = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); reportsAction.setOpaque(false); JButton btnExport = new JButton("Export"); styleSecondaryButton(btnExport); btnExport.addActionListener(e -> openExportReportsDialog()); reportsAction.add(btnExport); reportsTop.add(reportsAction, BorderLayout.EAST);
-        root.add(reportsTop, BorderLayout.NORTH);
-
-        // Add search listener
-        searchField.getDocument().addDocumentListener(new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
-            public void removeUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
-            public void changedUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
-        });
-
-        String[] cols = {"Date", "Patient", "Type", "Status"};
-        Object[][] data = {{"2025-01-10", "Alice Johnson", "Lab", "Completed"}, {"2025-01-11", "Bob Lee", "Imaging", "Pending"}};
-        reportsTable = new JTable(new DefaultTableModel(data, cols));
-
-        root.add(new JScrollPane(reportsTable), BorderLayout.CENTER);
-        return root;
+    private void cancelSelectedAppointment() {
+        int row = appointmentsTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select an appointment first."); return; }
+        DefaultTableModel m = (DefaultTableModel) appointmentsTable.getModel();
+        String apptId = (String) m.getValueAt(row, 0);
+        int confirm = JOptionPane.showConfirmDialog(this, "Cancel selected appointment?", "Confirm", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+        try {
+            AppointmentService.getInstance().cancel(apptId);
+            JOptionPane.showMessageDialog(this, "Appointment cancelled.");
+            refreshAppointments();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Failed to cancel appointment: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     // SUMMARY PANEL ----------------------------------------------------
@@ -440,24 +479,27 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
 
     // Dialogs for Patients actions
     private void openAddPatientDialog() {
-        JPanel panel = new JPanel(new GridLayout(4, 2, 8, 8));
-        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        panel.add(new JLabel("Name:")); JTextField name = new JTextField(); panel.add(name);
-        panel.add(new JLabel("Age:")); JTextField age = new JTextField(); panel.add(age);
-        panel.add(new JLabel("Condition:")); JTextField cond = new JTextField(); panel.add(cond);
-        // Show larger dialog
-        int result;
-        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Add Patient", Dialog.ModalityType.APPLICATION_MODAL);
-        dlg.getContentPane().setLayout(new BorderLayout()); JScrollPane sp = new JScrollPane(panel); dlg.getContentPane().add(sp, BorderLayout.CENTER);
-        JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton ok = new JButton("Save"); JButton cancel = new JButton("Cancel"); foot.add(cancel); foot.add(ok); dlg.getContentPane().add(foot, BorderLayout.SOUTH);
-        final int[] picked = {JOptionPane.CANCEL_OPTION}; ok.addActionListener(e -> { picked[0] = JOptionPane.OK_OPTION; dlg.dispose(); }); cancel.addActionListener(e -> { picked[0] = JOptionPane.CANCEL_OPTION; dlg.dispose(); });
-        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize(); dlg.setUndecorated(true); dlg.setBounds(0,0, screen.width, screen.height); dlg.setVisible(true); result = picked[0];
-        if (result == JOptionPane.OK_OPTION) {
-            if (!name.getText().isEmpty() && !age.getText().isEmpty()) {
-                DefaultTableModel m = (DefaultTableModel) patientsTable.getModel();
-                m.addRow(new Object[]{m.getRowCount() + 1, name.getText(), parseIntSafe(age.getText()), cond.getText()});
-            } else {
-                JOptionPane.showMessageDialog(this, "Please fill required fields.", "Warning", JOptionPane.WARNING_MESSAGE);
+        // Mirror Admin's patient create form and use PatientService
+        JPanel form = new JPanel(new GridLayout(0,2,8,8));
+        JTextField fn = new JTextField(); JTextField ln = new JTextField(); JTextField phone = new JTextField();
+        JTextField gender = new JTextField(); JTextField dob = new JTextField(); JTextField email = new JTextField(); JTextField addr = new JTextField();
+        form.add(new JLabel("First name:")); form.add(fn);
+        form.add(new JLabel("Last name:")); form.add(ln);
+        form.add(new JLabel("DOB (YYYY-MM-DD):")); form.add(dob);
+        form.add(new JLabel("Gender:")); form.add(gender);
+        form.add(new JLabel("Phone:")); form.add(phone);
+        form.add(new JLabel("Email:")); form.add(email);
+        form.add(new JLabel("Address:")); form.add(addr);
+        int res = JOptionPane.showConfirmDialog(this, form, "Add Patient", JOptionPane.OK_CANCEL_OPTION);
+        if (res==JOptionPane.OK_OPTION) {
+            try {
+                java.time.LocalDate ld = java.time.LocalDate.parse(dob.getText().trim());
+                PatientService.getInstance().createPatient(fn.getText().trim(), ln.getText().trim(), ld, gender.getText().trim(), phone.getText().trim(), email.getText().trim(), addr.getText().trim());
+                JOptionPane.showMessageDialog(this, "Patient created.");
+                // reload patients table
+                reloadPatientsTable();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Invalid input: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
@@ -466,8 +508,8 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         int row = patientsTable.getSelectedRow();
         if (row == -1) { JOptionPane.showMessageDialog(this, "Select a patient first."); return; }
         DefaultTableModel m = (DefaultTableModel) patientsTable.getModel();
-        String info = String.format("ID: %s\nName: %s\nAge: %s\nCondition: %s",
-            m.getValueAt(row, 0), m.getValueAt(row, 1), m.getValueAt(row, 2), m.getValueAt(row, 3));
+        String info = String.format("ID: %s\nName: %s\nDOB: %s\nGender: %s\nPhone: %s",
+            m.getValueAt(row, 0), m.getValueAt(row, 1), m.getValueAt(row, 2), m.getValueAt(row, 3), m.getValueAt(row, 4));
         JOptionPane.showMessageDialog(this, info, "Patient Details", JOptionPane.INFORMATION_MESSAGE);
     }
 
@@ -477,18 +519,72 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         int confirm = JOptionPane.showConfirmDialog(this, "Delete selected patient?", "Confirm", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
             DefaultTableModel m = (DefaultTableModel) patientsTable.getModel();
-            m.removeRow(row);
+            String id = (String) m.getValueAt(row, 0);
+            boolean ok = PatientService.getInstance().deletePatient(id);
+            if (ok) { JOptionPane.showMessageDialog(this, "Patient removed."); reloadPatientsTable(); }
+            else JOptionPane.showMessageDialog(this, "Failed to remove patient.");
         }
     }
 
     private void openAssignAppointmentDialog() {
+        // Seed drjohn availability (Mon-Wed 07:00-14:00) if a doctor record exists for that username
+        try {
+            Service.UserService.getInstance().findByUsername("drjohn").ifPresent(u -> {
+                Service.DoctorServiceImpl.getInstance().listAll().stream().filter(d -> d.getUser()!=null && "drjohn".equalsIgnoreCase(d.getUser().getUsername())).findFirst().ifPresent(d -> {
+                    boolean hasMon = false;
+                    try {
+                        java.util.List<Model.DoctorSchedule> scheds = listDoctorSchedules(d.getDoctorId());
+                        for (Model.DoctorSchedule s : scheds) if (s.getDayOfWeek()==java.time.DayOfWeek.MONDAY) { hasMon = true; break; }
+                    } catch (Throwable ignored) {}
+                    if (!hasMon) {
+                        saveDoctorSchedule(new Model.DoctorSchedule(d, java.time.DayOfWeek.MONDAY, java.time.LocalTime.of(7,0), java.time.LocalTime.of(14,0), true));
+                        saveDoctorSchedule(new Model.DoctorSchedule(d, java.time.DayOfWeek.TUESDAY, java.time.LocalTime.of(7,0), java.time.LocalTime.of(14,0), true));
+                        saveDoctorSchedule(new Model.DoctorSchedule(d, java.time.DayOfWeek.WEDNESDAY, java.time.LocalTime.of(7,0), java.time.LocalTime.of(14,0), true));
+                    }
+                });
+            });
+        } catch (Exception ignored) {}
+
         int row = patientsTable.getSelectedRow();
         if (row == -1) { JOptionPane.showMessageDialog(this, "Select a patient first."); return; }
-        JPanel panel = new JPanel(new GridLayout(3, 2, 8, 8));
+        DefaultTableModel m = (DefaultTableModel) patientsTable.getModel();
+        String patientId = (String) m.getValueAt(row, 0);
+
+        JPanel panel = new JPanel(new GridLayout(4, 2, 8, 8));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        panel.add(new JLabel("Doctor:"));
+        // build doctor dropdown from DoctorServiceImpl
+        java.util.List<Model.Doctor> docs = new java.util.ArrayList<>(Service.DoctorServiceImpl.getInstance().listAll());
+        java.util.Vector<String> docLabels = new java.util.Vector<>();
+        java.util.Map<String, Model.Doctor> docByLabel = new java.util.HashMap<>();
+        for (Model.Doctor d : docs) {
+            String uname = d.getUser()!=null?d.getUser().getUsername():d.getDoctorId();
+            String label = uname + " (" + d.getDoctorId() + ")";
+            docLabels.add(label);
+            docByLabel.put(label, d);
+        }
+        if (docLabels.isEmpty()) docLabels.add("(no doctors available)");
+        JComboBox<String> doctorBox = new JComboBox<>(docLabels);
+        panel.add(doctorBox);
+        panel.add(new JLabel("Available slot:")); JComboBox<String> slotBox = new JComboBox<>(new String[]{"-- select doctor first --"}); panel.add(slotBox);
         panel.add(new JLabel("Date (YYYY-MM-DD):")); JTextField date = new JTextField(); panel.add(date);
         panel.add(new JLabel("Time (HH:MM optional):")); JTextField time = new JTextField(); panel.add(time);
-        panel.add(new JLabel("Type:")); JComboBox<String> type = new JComboBox<>(new String[]{"Consultation", "Follow-up", "Procedure"}); panel.add(type);
+
+        // update slotBox when doctor selection changes
+        doctorBox.addActionListener(e -> {
+            String sel = (String) doctorBox.getSelectedItem();
+            slotBox.removeAllItems();
+            if (sel == null) return;
+            Model.Doctor dd = docByLabel.get(sel);
+            if (dd == null) return;
+            java.util.List<Model.DoctorSchedule> slots = listDoctorSchedules(dd.getDoctorId());
+            for (Model.DoctorSchedule s : slots) {
+                 if (!s.isAvailable()) continue;
+                 slotBox.addItem(s.getDayOfWeek().name() + " " + s.getTimeStart().toString() + "-" + s.getTimeEnd().toString());
+             }
+             if (slotBox.getItemCount()==0) slotBox.addItem("(no available slots)");
+         });
+
         int result;
         JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Assign Appointment", Dialog.ModalityType.APPLICATION_MODAL);
         dlg.getContentPane().setLayout(new BorderLayout()); JScrollPane sp = new JScrollPane(panel); dlg.getContentPane().add(sp, BorderLayout.CENTER);
@@ -511,9 +607,76 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
             if (parsed.isAfter(today.plusYears(2))) { // arbitrary future cap
                 JOptionPane.showMessageDialog(this, "Date too far in the future.", "Error", JOptionPane.ERROR_MESSAGE); return;
             }
-            // If we maintain an appointments table for doctor context later, we could add here.
-            JOptionPane.showMessageDialog(this, "Appointment assigned on " + parsed + " (" + type.getSelectedItem() + ")");
+            // parse time (optional)
+            java.time.LocalTime lt = java.time.LocalTime.of(9,0);
+            String timeStr = time.getText().trim();
+            if (!timeStr.isEmpty()) {
+                try { lt = java.time.LocalTime.parse(timeStr);
+                } catch (Exception ex) { JOptionPane.showMessageDialog(this, "Invalid time format. Use HH:MM.", "Error", JOptionPane.ERROR_MESSAGE); return; }
+            }
+            String sel = (String) doctorBox.getSelectedItem();
+            if (sel == null || sel.startsWith("(no doctors")) { JOptionPane.showMessageDialog(this, "Doctor required.", "Error", JOptionPane.ERROR_MESSAGE); return; }
+            Model.Doctor chosenDoc = docByLabel.get(sel);
+            if (chosenDoc == null) { JOptionPane.showMessageDialog(this, "Doctor selection invalid.", "Error", JOptionPane.ERROR_MESSAGE); return; }
+            try {
+                java.time.LocalDateTime when = java.time.LocalDateTime.of(parsed, lt);
+                Appointment a = AppointmentService.getInstance().schedule(patientId, chosenDoc.getDoctorId(), when, "" + ((slotBox.getSelectedItem()!=null)?slotBox.getSelectedItem().toString():"") + " " + timeStr);
+                JOptionPane.showMessageDialog(this, "Appointment assigned on " + when + " to " + sel);
+                refreshAppointments();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Failed to schedule appointment: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
+    }
+
+    private void acceptSelectedAppointment() {
+        int row = appointmentsTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select an appointment first."); return; }
+        DefaultTableModel m = (DefaultTableModel) appointmentsTable.getModel();
+        String apptId = (String) m.getValueAt(row, 0);
+        String status = null;
+        try { status = (String) m.getValueAt(row, 6); } catch (Exception ignored) {}
+        if (status != null && !status.equalsIgnoreCase("PENDING")) {
+            JOptionPane.showMessageDialog(this, "Only PENDING appointments can be accepted. Current status: " + status, "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        int confirm = JOptionPane.showConfirmDialog(this, "Accept selected appointment?", "Confirm", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+        try {
+            AppointmentService.getInstance().approve(apptId);
+            JOptionPane.showMessageDialog(this, "Appointment accepted.");
+            refreshAppointments();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Failed to accept appointment: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // REPORTS PANEL ----------------------------------------------------
+    private JPanel buildReportsPanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        // Top area: header (left), search (center), actions (right)
+        JPanel reportsTop = new JPanel(new BorderLayout(8,8)); reportsTop.setOpaque(false);
+        JLabel repHeader = new JLabel("Reports History", SwingConstants.LEFT); repHeader.setFont(FONT_SECTION); repHeader.setForeground(COLOR_PRIMARY.darker()); reportsTop.add(repHeader, BorderLayout.WEST);
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchPanel.setOpaque(false); searchPanel.add(new JLabel("Search Reports:")); JTextField searchField = new JTextField(20); searchPanel.add(searchField); reportsTop.add(searchPanel, BorderLayout.CENTER);
+        JPanel reportsAction = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0)); reportsAction.setOpaque(false); JButton btnExport = new JButton("Export"); styleSecondaryButton(btnExport); btnExport.addActionListener(e -> openExportReportsDialog()); reportsAction.add(btnExport); reportsTop.add(reportsAction, BorderLayout.EAST);
+        root.add(reportsTop, BorderLayout.NORTH);
+
+        // Add search listener
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { filterReportsTable(searchField.getText()); }
+        });
+
+        String[] cols = {"Date", "Patient", "Type", "Status"};
+        Object[][] data = {{"2025-01-10", "Alice Johnson", "Lab", "Completed"}, {"2025-01-11", "Bob Lee", "Imaging", "Pending"}};
+        reportsTable = new JTable(new DefaultTableModel(data, cols));
+
+        root.add(new JScrollPane(reportsTable), BorderLayout.CENTER);
+        return root;
     }
 
     private void openExportReportsDialog() {
@@ -614,5 +777,119 @@ public class DoctorDashboardPanel extends JPanel implements GlobalSearchable {
         } else {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query.trim()));
         }
+    }
+
+    // APPOINTMENT REQUESTS PANEL --------------------------------------
+    private JPanel buildAppointmentRequestsPanel() {
+        JPanel root = new JPanel(new BorderLayout(8,8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(12,12,12,12));
+
+        JPanel top = new JPanel(new BorderLayout()); top.setOpaque(false);
+        JLabel header = new JLabel("Appointment Requests", SwingConstants.LEFT); header.setFont(FONT_SECTION); header.setForeground(COLOR_PRIMARY.darker()); top.add(header, BorderLayout.WEST);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
+        JButton btnRefresh = new JButton("Refresh"); styleSecondaryButton(btnRefresh); btnRefresh.addActionListener(e -> refreshRequestList());
+        JButton btnAccept = new JButton("Accept"); styleSecondaryButton(btnAccept); btnAccept.addActionListener(e -> acceptSelectedRequest());
+        JButton btnReject = new JButton("Reject"); styleSecondaryButton(btnReject); btnReject.addActionListener(e -> rejectSelectedRequest());
+        actions.add(btnRefresh); actions.add(btnAccept); actions.add(btnReject);
+        top.add(actions, BorderLayout.EAST);
+        root.add(top, BorderLayout.NORTH);
+
+        String[] cols = {"Req ID", "Patient", "Requested By", "When", "Reason", "Status"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) { @Override public boolean isCellEditable(int r,int c){ return false; } };
+        requestsTable = new JTable(model);
+        root.add(new JScrollPane(requestsTable), BorderLayout.CENTER);
+
+        refreshRequestList();
+        return root;
+    }
+
+    private void refreshRequestList() {
+        DefaultTableModel m = (DefaultTableModel) requestsTable.getModel();
+        m.setRowCount(0);
+        for (Appointment a : AppointmentService.getInstance().listAll()) {
+            // treat PENDING as incoming requests
+            if (a.getStatus() != null && a.getStatus().name().equalsIgnoreCase("PENDING")) {
+                // If currentUsername set, show only requests addressed to this doctor
+                String doc = a.getStaffId();
+                if (this.currentUsername != null && !this.currentUsername.isBlank()) {
+                    if (!this.currentUsername.equalsIgnoreCase(doc) && !doc.equalsIgnoreCase(this.currentUsername)) continue;
+                }
+                String patientName = a.getPatientId();
+                java.util.Optional<Model.Patient> pat = PatientService.getInstance().findById(a.getPatientId());
+                if (pat.isPresent()) {
+                    Model.Patient pp = pat.get();
+                    patientName = (pp.getFirstName()==null?"":pp.getFirstName()) + " " + (pp.getLastName()==null?"":pp.getLastName());
+                }
+                m.addRow(new Object[]{a.getId(), patientName, a.getStaffId(), dtf.format(a.getScheduledAt()), a.getReason(), a.getStatus().name()});
+            }
+        }
+    }
+
+    private void acceptSelectedRequest() {
+        int row = requestsTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a request first."); return; }
+        DefaultTableModel m = (DefaultTableModel) requestsTable.getModel();
+        String reqId = (String) m.getValueAt(row, 0);
+        int confirm = JOptionPane.showConfirmDialog(this, "Accept this appointment request?", "Confirm", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+        try {
+            AppointmentService.getInstance().approve(reqId);
+            // refresh both lists
+            refreshRequestList();
+            refreshAppointments();
+            JOptionPane.showMessageDialog(this, "Request accepted — moved to Appointments.");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Failed to accept request: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void rejectSelectedRequest() {
+        int row = requestsTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a request first."); return; }
+        DefaultTableModel m = (DefaultTableModel) requestsTable.getModel();
+        String reqId = (String) m.getValueAt(row, 0);
+        int confirm = JOptionPane.showConfirmDialog(this, "Reject (cancel) this appointment request?", "Confirm", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+        try {
+            AppointmentService.getInstance().cancel(reqId);
+            refreshRequestList();
+            // optionally refresh patient requests/appointments
+            refreshAppointments();
+            JOptionPane.showMessageDialog(this, "Request rejected — moved to cancelled.");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Failed to reject request: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Helper: attempt to list doctor schedules via reflection if Service.DoctorScheduleService exists
+    @SuppressWarnings("unchecked")
+    private java.util.List<Model.DoctorSchedule> listDoctorSchedules(String doctorId) {
+        try {
+            Class<?> cls = Class.forName("Service.DoctorScheduleService");
+            Object inst = cls.getMethod("getInstance").invoke(null);
+            java.lang.reflect.Method m = null;
+            for (java.lang.reflect.Method mm : cls.getMethods()) {
+                if ("listByDoctorId".equals(mm.getName()) && mm.getParameterCount() == 1 && mm.getParameterTypes()[0] == String.class) { m = mm; break; }
+            }
+            if (m != null) {
+                Object res = m.invoke(inst, doctorId);
+                if (res instanceof java.util.List) return (java.util.List<Model.DoctorSchedule>) res;
+            }
+        } catch (Throwable ignored) {}
+        return new ArrayList<>();
+    }
+
+    // Helper: attempt to save a doctor schedule via reflection if Service.DoctorScheduleService exists
+    private void saveDoctorSchedule(Model.DoctorSchedule ds) {
+        try {
+            Class<?> cls = Class.forName("Service.DoctorScheduleService");
+            Object inst = cls.getMethod("getInstance").invoke(null);
+            java.lang.reflect.Method saveMethod = null;
+            for (java.lang.reflect.Method mm : cls.getMethods()) {
+                if ("save".equals(mm.getName()) && mm.getParameterCount() == 1) { saveMethod = mm; break; }
+            }
+            if (saveMethod != null) saveMethod.invoke(inst, ds);
+        } catch (Throwable ignored) {}
     }
 }

@@ -22,6 +22,7 @@ import Service.UserService;
 import Model.Patient;
 import Model.User;
 import Model.Role;
+import Model.Appointment;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -101,6 +102,31 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
                 case "LAB": setActiveButton(btnLab, "LAB"); break;
                 default: setActiveButton(btnSummary, "SUMMARY");
             }
+        }
+
+        // Try to show queued notifications for this staff user (if NotificationService exists)
+        SwingUtilities.invokeLater(this::checkNotifications);
+     }
+
+    // Reflection-based notification fetcher to avoid hard dependency on NotificationService
+    private void checkNotifications() {
+        if (this.currentUsername == null || this.currentUsername.isBlank()) return;
+        try {
+            Class<?> cls = Class.forName("Service.NotificationService");
+            java.lang.reflect.Method getInst = cls.getMethod("getInstance");
+            Object inst = getInst.invoke(null);
+            java.lang.reflect.Method getAndClear = cls.getMethod("getAndClearNotifications", String.class);
+            Object notes = getAndClear.invoke(inst, this.currentUsername);
+            if (notes instanceof java.util.List) {
+                java.util.List<?> list = (java.util.List<?>) notes;
+                if (!list.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (Object n : list) sb.append("- ").append(n==null?"":n.toString()).append("\n");
+                    JOptionPane.showMessageDialog(this, sb.toString(), "Notifications", JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        } catch (Throwable ignored) {
+            // Notification service not available; ignore
         }
     }
 
@@ -365,7 +391,15 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
             // Schedule using selected doctor's username as staffId
             try {
-                AppointmentService.getInstance().schedule(patientId, doctor, when, reason);
+                Appointment appt = AppointmentService.getInstance().schedule(patientId, doctor, when, reason);
+                // Register the request origin so staff can be notified if it is cancelled/accepted (optional registry)
+                try {
+                    Class<?> regCls = Class.forName("Service.AppointmentRequestRegistry");
+                    java.lang.reflect.Method getReg = regCls.getMethod("getInstance");
+                    Object regInst = getReg.invoke(null);
+                    java.lang.reflect.Method register = regCls.getMethod("registerRequest", String.class, String.class);
+                    register.invoke(regInst, appt.getId(), this.currentUsername==null?"staff":this.currentUsername);
+                } catch (Throwable ignored) {}
                 info("Appointment scheduled for " + patientName + " with " + doctor + " on " + when);
             } catch (Exception ex) {
                 warn("Failed to schedule appointment: " + ex.getMessage());

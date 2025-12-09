@@ -215,8 +215,8 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.setLayout(cardLayout);
         mainContentPanel.setBorder(new LineBorder(COLOR_BORDER));
 
-        // Summary removed
-        // mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
+        // Add SUMMARY (from new-UI) but keep PROFILE as default landing
+        mainContentPanel.add(buildSummaryPanel(), "SUMMARY");
         profilePanel = buildProfilePanel();
         mainContentPanel.add(profilePanel, "PROFILE");
         mainContentPanel.add(buildAppointmentsPanel(), "APPOINTMENTS");
@@ -227,6 +227,41 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
         mainContentPanel.add(buildServicesPanel(), "SERVICES");
         mainContentPanel.add(buildAdmissionPanel(), "ADMISSION");
         return mainContentPanel;
+    }
+
+    // SUMMARY PANEL (taken from new-UI)
+    private JPanel buildSummaryPanel() {
+        JPanel root = new JPanel(new BorderLayout(12, 12));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
+        JLabel header = sectionHeader("Dashboard Summary");
+        root.add(header, BorderLayout.NORTH);
+
+        JPanel statsGrid = new JPanel(new GridLayout(1, 3, 12, 12));
+        statsGrid.setOpaque(false);
+        lblUpcomingAppts = createStatLabel("Upcoming Appts", "0");
+        lblPendingBills = createStatLabel("Pending Bills", "0");
+        lblLabResults = createStatLabel("Lab Results Ready", "0");
+        statsGrid.add(wrapStat("Upcoming Appointments", lblUpcomingAppts));
+        statsGrid.add(wrapStat("Pending Bills", lblPendingBills));
+        statsGrid.add(wrapStat("Lab Results Ready", lblLabResults));
+        root.add(statsGrid, BorderLayout.CENTER);
+
+        JTextArea info = new JTextArea("Overview of your health and activities. Use the navigation to explore more.");
+        info.setFont(FONT_NORMAL);
+        info.setEditable(false);
+        info.setLineWrap(true);
+        info.setWrapStyleWord(true);
+        info.setBorder(new EmptyBorder(8, 12, 8, 12));
+        root.add(new JScrollPane(info), BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JLabel createStatLabel(String name, String value) {
+        JLabel l = new JLabel(value, SwingConstants.CENTER);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        l.setForeground(COLOR_PRIMARY);
+        return l;
     }
 
     // PROFILE PANEL ---------------------------------------------------
@@ -522,93 +557,121 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
 
     // SERVICES PANEL ---------------------------------------------------
     private JPanel buildServicesPanel() {
+        // Use new-UI two-column layout and announcements list. Use reflection for HospitalService calls.
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
-        JLabel header = new JLabel("Hospital Services", SwingConstants.LEFT); header.setFont(FONT_SECTION); header.setForeground(COLOR_PRIMARY.darker()); root.add(header, BorderLayout.NORTH);
-        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6)); topBar.setOpaque(false);
-        JButton btnSurgery = new JButton("Surgery"); styleSecondaryButton(btnSurgery);
-        JButton btnRadiology = new JButton("Radiology"); styleSecondaryButton(btnRadiology);
-        JButton btnPharmacy = new JButton("Pharmacy"); styleSecondaryButton(btnPharmacy);
-        JButton btnPediatrics = new JButton("Pediatrics"); styleSecondaryButton(btnPediatrics);
-        JButton btnCardiology = new JButton("Cardiology"); styleSecondaryButton(btnCardiology);
-        JButton btnOrthopedics = new JButton("Orthopedics"); styleSecondaryButton(btnOrthopedics);
-        Dimension btnSize = new Dimension(140, 34);
-        for (JButton b : new JButton[]{btnSurgery,btnRadiology,btnPharmacy,btnPediatrics,btnCardiology,btnOrthopedics}) { b.setPreferredSize(btnSize); topBar.add(b);} root.add(topBar, BorderLayout.NORTH);
+
+        JLabel header = new JLabel("Hospital Services", SwingConstants.LEFT);
+        header.setFont(FONT_SECTION);
+        header.setForeground(COLOR_PRIMARY.darker());
+        header.setBorder(new EmptyBorder(0, 0, 8, 0));
+        root.add(header, BorderLayout.NORTH);
+
+        JPanel nav = new JPanel(new GridLayout(0, 2, 10, 10)); nav.setOpaque(false);
+        JButton btnSurgery = createNavButton("Surgery", "SERVICES");
+        JButton btnRadiology = createNavButton("Radiology", "SERVICES");
+        JButton btnPharmacy = createNavButton("Pharmacy", "SERVICES");
+        JButton btnPediatrics = createNavButton("Pediatrics", "SERVICES");
+        JButton btnCardiology = createNavButton("Cardiology", "SERVICES");
+        JButton btnOrthopedics = createNavButton("Orthopedics", "SERVICES");
+        java.util.List<JButton> categoryButtons = java.util.Arrays.asList(btnSurgery, btnRadiology, btnPharmacy, btnPediatrics, btnCardiology, btnOrthopedics);
+        for (JButton b : categoryButtons) nav.add(b);
+
         JTextArea infoArea = new JTextArea(); infoArea.setEditable(false); infoArea.setFont(FONT_NORMAL); infoArea.setLineWrap(true); infoArea.setWrapStyleWord(true);
-        JScrollPane infoScroll = new JScrollPane(infoArea); root.add(infoScroll, BorderLayout.CENTER);
-        java.util.List<JButton> categoryButtons = java.util.Arrays.asList(btnSurgery,btnRadiology,btnPharmacy,btnPediatrics,btnCardiology,btnOrthopedics);
-        Runnable resetAll = () -> { for (JButton b : categoryButtons) { b.setBackground(Color.WHITE); b.setForeground(Color.BLACK);} };
-        java.util.function.Consumer<JButton> setActive = (btn) -> { resetAll.run(); btn.setBackground(COLOR_ACTIVE); btn.setForeground(Color.WHITE);} ;
+        JScrollPane infoScroll = new JScrollPane(infoArea);
 
-        // Add hover and pressed effects while respecting active state
-        for (JButton b : categoryButtons) {
-            b.addMouseListener(new MouseAdapter() {
-                @Override public void mouseEntered(MouseEvent e) {
-                    if (!COLOR_ACTIVE.equals(b.getBackground())) {
-                        b.setBackground(COLOR_PRIMARY_HOVER);
-                    }
-                }
-                @Override public void mouseExited(MouseEvent e) {
-                    if (!COLOR_ACTIVE.equals(b.getBackground())) {
-                        b.setBackground(Color.WHITE);
-                    }
-                }
-                @Override public void mousePressed(MouseEvent e) {
-                    // Darken on press for feedback; keep active buttons as is
-                    if (!COLOR_ACTIVE.equals(b.getBackground())) {
-                        b.setBackground(COLOR_PRIMARY.darker());
-                        b.setForeground(Color.WHITE);
-                    }
-                }
-                @Override public void mouseReleased(MouseEvent e) {
-                    if (!COLOR_ACTIVE.equals(b.getBackground())) {
-                        // If mouse is still over the button, show hover; otherwise, reset
-                        Point p = e.getPoint();
-                        if (p.x >= 0 && p.y >= 0 && p.x < b.getWidth() && p.y < b.getHeight()) {
-                            b.setBackground(COLOR_PRIMARY_HOVER);
-                            b.setForeground(Color.BLACK);
-                        } else {
-                            b.setBackground(Color.WHITE);
-                            b.setForeground(Color.BLACK);
-                        }
-                    }
-                }
-            });
-        }
+        JPanel center = new JPanel(new GridLayout(1, 2, 16, 0)); center.setOpaque(false);
+        center.add(nav);
 
-        btnSurgery.addActionListener(e -> { setActive.accept(btnSurgery); infoArea.setText("Surgery Department\n\nLead Surgeon: Dr. Anthony Rivera\nSpecialties: General surgery, minimally invasive procedures.\nAvailability: Mon-Fri, 7:00 AM - 6:00 PM.\nContact: surgery@hospital.example");});
-        btnRadiology.addActionListener(e -> { setActive.accept(btnRadiology); infoArea.setText("Radiology Department\n\nChief Radiologist: Dr. Sophia Nguyen\nServices: X-Ray, MRI, CT, Ultrasound.\nAvailability: Mon-Sat, 8:00 AM - 8:00 PM.\nContact: radiology@hospital.example");});
-        btnPharmacy.addActionListener(e -> { setActive.accept(btnPharmacy); infoArea.setText("Pharmacy\n\nHead Pharmacist: Mr. Daniel Perez, RPh\nServices: Prescriptions, medication counseling, refills.\nAvailability: Mon-Sun, 9:00 AM - 9:00 PM.\nContact: pharmacy@hospital.example");});
-        btnPediatrics.addActionListener(e -> { setActive.accept(btnPediatrics); infoArea.setText("Pediatrics\n\nAttending Pediatrician: Dr. Emily Carter\nServices: Well-child visits, immunizations, acute care.\nAvailability: Mon-Fri, 9:00 AM - 5:00 PM.\nContact: pediatrics@hospital.example");});
-        btnCardiology.addActionListener(e -> { setActive.accept(btnCardiology); infoArea.setText("Cardiology\n\nConsultant Cardiologist: Dr. Raj Patel\nServices: ECG, echocardiogram, stress tests, heart health.\nAvailability: Mon-Fri, 8:00 AM - 4:00 PM.\nContact: cardiology@hospital.example");});
-        btnOrthopedics.addActionListener(e -> { setActive.accept(btnOrthopedics); infoArea.setText("Orthopedics\n\nOrthopedic Surgeon: Dr. Laura Kim\nServices: Bone/joint care, sports injuries, rehabilitation.\nAvailability: Mon-Fri, 10:00 AM - 6:00 PM.\nContact: ortho@hospital.example");});
+        // Right side: service info and announcements
+        JPanel rightSide = new JPanel(new BorderLayout(8,8)); rightSide.setOpaque(false);
+        rightSide.add(infoScroll, BorderLayout.CENTER);
+        DefaultListModel<String> annModel = new DefaultListModel<>();
+        JList<String> annList = new JList<>(annModel);
+        JPanel annPanel = new JPanel(new BorderLayout()); annPanel.setOpaque(false);
+        annPanel.setBorder(BorderFactory.createTitledBorder("Announcements"));
+        annPanel.add(new JScrollPane(annList), BorderLayout.CENTER);
+        JButton btnAnnRefresh = new JButton("Refresh Announcements"); styleSecondaryButton(btnAnnRefresh);
+        annPanel.add(btnAnnRefresh, BorderLayout.SOUTH);
+        rightSide.add(annPanel, BorderLayout.SOUTH);
+
+        center.add(rightSide);
+        root.add(center, BorderLayout.CENTER);
+
+        Runnable resetAll = () -> { for (JButton b : categoryButtons) { b.setBackground(Color.WHITE); b.setForeground(Color.BLACK); } };
+        java.util.function.Consumer<JButton> setActive = (btn) -> { resetAll.run(); btn.setBackground(COLOR_ACTIVE); btn.setForeground(Color.WHITE); };
+
+        btnSurgery.addActionListener(e -> { setActive.accept(btnSurgery); infoArea.setText("Surgery Department\n\nLead Surgeon: Dr. Anthony Rivera\nSpecialties: General surgery, minimally invasive procedures.\nAvailability: Mon-Fri, 7:00 AM - 6:00 PM.\nContact: surgery@hospital.example"); });
+        btnRadiology.addActionListener(e -> { setActive.accept(btnRadiology); infoArea.setText("Radiology Department\n\nChief Radiologist: Dr. Sophia Nguyen\nServices: X-Ray, MRI, CT, Ultrasound.\nAvailability: Mon-Sat, 8:00 AM - 8:00 PM.\nContact: radiology@hospital.example"); });
+        btnPharmacy.addActionListener(e -> { setActive.accept(btnPharmacy); infoArea.setText("Pharmacy\n\nHead Pharmacist: Mr. Daniel Perez, RPh\nServices: Prescriptions, medication counseling, refills.\nAvailability: Mon-Sun, 9:00 AM - 9:00 PM.\nContact: pharmacy@hospital.example"); });
+        btnPediatrics.addActionListener(e -> { setActive.accept(btnPediatrics); infoArea.setText("Pediatrics\n\nAttending Pediatrician: Dr. Emily Carter\nServices: Well-child visits, immunizations, acute care.\nAvailability: Mon-Fri, 9:00 AM - 5:00 PM.\nContact: pediatrics@hospital.example"); });
+        btnCardiology.addActionListener(e -> { setActive.accept(btnCardiology); infoArea.setText("Cardiology\n\nConsultant Cardiologist: Dr. Raj Patel\nServices: ECG, echocardiogram, stress tests, heart health.\nAvailability: Mon-Fri, 8:00 AM - 4:00 PM.\nContact: cardiology@hospital.example"); });
+        btnOrthopedics.addActionListener(e -> { setActive.accept(btnOrthopedics); infoArea.setText("Orthopedics\n\nOrthopedic Surgeon: Dr. Laura Kim\nServices: Bone/joint care, sports injuries, rehabilitation.\nAvailability: Mon-Fri, 10:00 AM - 6:00 PM.\nContact: ortho@hospital.example"); });
+
         setActive.accept(btnSurgery);
+
+        // Load announcements reflectively from Service.HospitalService if available
+        Runnable reloadAnnouncements = () -> {
+            annModel.clear();
+            try {
+                Class<?> hsCls = Class.forName("Service.HospitalService");
+                Object hsInst = hsCls.getMethod("getInstance").invoke(null);
+                java.lang.reflect.Method listM = hsCls.getMethod("listAnnouncementsForUser", String.class);
+                Object res = listM.invoke(hsInst, currentUsername==null?"":currentUsername);
+                if (res instanceof java.util.List) {
+                    for (Object a : (java.util.List<?>) res) annModel.addElement(a==null?"":a.toString());
+                }
+            } catch (Throwable ignored) {
+                // Not available — skip
+            }
+        };
+        btnAnnRefresh.addActionListener(e -> reloadAnnouncements.run());
+        reloadAnnouncements.run();
+
         return root;
     }
 
-    // ADMISSION & DISCHARGE PANEL -------------------------------------
+    // ADMISSION & DISCHARGE PANEL (richer new-UI version)
     private JPanel buildAdmissionPanel() {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBackground(COLOR_BG);
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
         JLabel header = new JLabel("Admission & Discharge", SwingConstants.LEFT); header.setFont(FONT_SECTION); header.setForeground(COLOR_PRIMARY.darker()); root.add(header, BorderLayout.NORTH);
-        String[] cols = {"Type", "Date", "Department", "Status"};
-        Object[][] data = {{"Admission", "2025-01-03", "General Medicine", "Completed"},{"Discharge", "2025-01-07", "General Medicine", "Completed"}};
-        admissionTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
-        root.add(new JScrollPane(admissionTable), BorderLayout.CENTER);
-        return root;
-    }
 
-    // GUIDE PANEL -----------------------------------------------------
-    private JPanel buildGuidePanel() {
-        JPanel root = new JPanel(new BorderLayout(8, 8));
-        root.setBackground(COLOR_BG);
-        root.setBorder(new EmptyBorder(16, 16, 16, 16));
-        root.add(sectionHeader("User Guide"), BorderLayout.NORTH);
-        JTextArea area = new JTextArea("Welcome to the Patient Dashboard. Use the sidebar to navigate and the top toolbar in Services to view department info.");
-        area.setEditable(false); area.setFont(FONT_NORMAL); area.setLineWrap(true); area.setWrapStyleWord(true);
-        root.add(new JScrollPane(area), BorderLayout.CENTER);
+        JPanel topPanel = new JPanel(new BorderLayout()); topPanel.setOpaque(false);
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchPanel.setOpaque(false);
+        searchPanel.add(new JLabel("Search Records:"));
+        JTextField searchField = new JTextField(20); searchPanel.add(searchField);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+        root.add(topPanel, BorderLayout.NORTH);
+
+        String[] cols = {"Type", "Date", "Department", "Status"};
+        Object[][] data = {
+            {"Admission", "2025-01-03", "General Medicine", "Completed"},
+            {"Discharge", "2025-01-07", "General Medicine", "Completed"},
+            {"Admission", "2025-02-10", "Orthopedics", "Scheduled"},
+            {"Admission", "2025-03-12", "Cardiology", "In Progress"},
+            {"Discharge", "2025-03-18", "Cardiology", "Completed"}
+        };
+        admissionTable = new JTable(new DefaultTableModel(data, cols) { @Override public boolean isCellEditable(int r,int c){ return false; } });
+
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            private void apply(String q) {
+                TableRowSorter<TableModel> sorter = (TableRowSorter<TableModel>) admissionTable.getRowSorter();
+                if (sorter == null) { sorter = new TableRowSorter<>(admissionTable.getModel()); admissionTable.setRowSorter(sorter); }
+                if (q == null || q.trim().isEmpty()) { sorter.setRowFilter(null); }
+                else { sorter.setRowFilter(RowFilter.regexFilter("(?i)" + q.trim(), 0, 2, 3)); }
+            }
+            public void insertUpdate(DocumentEvent e) { apply(searchField.getText()); }
+            public void removeUpdate(DocumentEvent e) { apply(searchField.getText()); }
+            public void changedUpdate(DocumentEvent e) { apply(searchField.getText()); }
+        });
+
+        root.add(new JScrollPane(admissionTable), BorderLayout.CENTER);
+        JTextArea info = new JTextArea("This module shows sample admission and discharge records.");
+        info.setFont(FONT_NORMAL); info.setEditable(false); info.setLineWrap(true); info.setWrapStyleWord(true); info.setBorder(new EmptyBorder(8, 12, 8, 12));
+        root.add(new JScrollPane(info), BorderLayout.SOUTH);
         return root;
     }
 
@@ -820,5 +883,40 @@ public class PatientDashboardPanel extends JPanel implements GlobalSearchable {
                 "Email: " + profileData.email + "\n" +
                 "Phone: " + profileData.phone + "\n";
         if (profileArea != null) profileArea.setText(text);
+    }
+
+    // Missing helper: wrapStat (used by Summary panel)
+    private JPanel wrapStat(String titleText, JLabel value) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(Color.WHITE);
+        p.setBorder(new LineBorder(COLOR_BORDER));
+        JLabel t = new JLabel(titleText, SwingConstants.CENTER);
+        t.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        t.setForeground(COLOR_PRIMARY.darker());
+        t.setBorder(new EmptyBorder(6, 6, 0, 6));
+        p.add(t, BorderLayout.NORTH);
+        p.add(value, BorderLayout.CENTER);
+        return p;
+    }
+
+    // Restore buildGuidePanel (copied from new-UI version)
+    private JPanel buildGuidePanel() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(COLOR_BG);
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
+        root.add(sectionHeader("User Guide"), BorderLayout.NORTH);
+        JTextArea area = new JTextArea(
+            "Welcome to the Patient Dashboard. Use the sidebar to navigate and the top toolbar in Services to view department info.\n\n" +
+            "• Use the sidebar to navigate between Summary, Profile, Appointments, Bills, Lab Results, Services, and Admission & Discharge.\n" +
+            "• Use the search boxes at the top of tables to quickly filter information.\n" +
+            "• Edit Profile lets you update your personal and contact details.\n\n" +
+            "For support, click Help in the header."
+        );
+        area.setEditable(false);
+        area.setFont(FONT_NORMAL);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        root.add(new JScrollPane(area), BorderLayout.CENTER);
+        return root;
     }
 }

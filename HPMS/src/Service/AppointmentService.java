@@ -50,4 +50,15 @@ public class AppointmentService {
         repo.save(a);
         return a;
     }
+
+    // Approve an appointment (mark as APPROVED)
+    public Appointment approve(String appointmentId) {
+        Optional<Appointment> opt = repo.findById(appointmentId);
+        if (opt.isEmpty()) throw new IllegalArgumentException("Appointment not found: " + appointmentId);
+        Appointment a = opt.get();
+        a.setStatus(AppointmentStatus.APPROVED);
+        repo.save(a);
+        return a;
+    }
+
 }
