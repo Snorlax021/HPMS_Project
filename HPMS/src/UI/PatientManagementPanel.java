@@ -47,16 +47,18 @@ public class PatientManagementPanel extends JPanel {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton btnAdd = new JButton("Add Patient");
+        JButton btnAddShort = new JButton("ADD");
         JButton btnEdit = new JButton("Edit");
         JButton btnDeactivate = new JButton("Deactivate");
         JButton btnRefresh = new JButton("Refresh");
-        actions.add(btnDeactivate); actions.add(btnEdit); actions.add(btnAdd); actions.add(btnRefresh);
+        actions.add(btnDeactivate); actions.add(btnEdit); actions.add(btnAdd); actions.add(btnAddShort); actions.add(btnRefresh);
         add(actions, BorderLayout.SOUTH);
 
         btnRefresh.addActionListener(e -> reload());
         btnDeactivate.addActionListener(e -> deactivateSelected());
         btnEdit.addActionListener(e -> editSelected());
         btnAdd.addActionListener(e -> addNewPatient());
+        btnAddShort.addActionListener(e -> addNewPatient());
 
         table.addMouseListener(new MouseAdapter(){ public void mouseClicked(MouseEvent e){ if (e.getClickCount()==1) showSelectedDetails(); }});
 
@@ -87,7 +89,6 @@ public class PatientManagementPanel extends JPanel {
             pinfo.add(new JLabel("DOB: " + p.getDateOfBirth()));
             pinfo.add(new JLabel("Gender: " + p.getGender()));
             pinfo.add(new JLabel("Phone: " + p.getContactNumber()));
-            // Email is not tracked on Patient model; if linked User exists, show username instead
             if (p.getUser() != null) pinfo.add(new JLabel("Linked user: " + p.getUser().getUsername()));
             detailsPane.add(pinfo, BorderLayout.CENTER);
             detailsPane.revalidate(); detailsPane.repaint();
@@ -99,7 +100,7 @@ public class PatientManagementPanel extends JPanel {
         String id = (String) model.getValueAt(r,0);
         int c = JOptionPane.showConfirmDialog(this, "Deactivate this patient account?","Confirm", JOptionPane.YES_NO_OPTION);
         if (c!=JOptionPane.YES_OPTION) return;
-        boolean ok = patientService.deletePatient(id); // patient delete here uses repo delete; if you prefer soft-deactivate, we need to add that to PatientService
+        boolean ok = patientService.deletePatient(id); // repo delete; implement soft-deactivate if needed
         if (ok) { JOptionPane.showMessageDialog(this, "Patient removed."); reload(); }
         else JOptionPane.showMessageDialog(this, "Failed to remove patient.");
     }
@@ -117,31 +118,72 @@ public class PatientManagementPanel extends JPanel {
             form.add(new JLabel("Phone:")); form.add(phone);
             int res = JOptionPane.showConfirmDialog(this, form, "Edit Patient", JOptionPane.OK_CANCEL_OPTION);
             if (res==JOptionPane.OK_OPTION) {
-                // Patient model is immutable in this codebase; editing individual fields isn't supported.
                 JOptionPane.showMessageDialog(this, "Direct edit of Patient fields is not supported. To change details, create a new patient record.");
             }
         });
     }
 
     private void addNewPatient() {
-        JPanel form = new JPanel(new GridLayout(0,2,8,8));
-        JTextField fn = new JTextField(); JTextField ln = new JTextField(); JTextField phone = new JTextField();
-        JTextField gender = new JTextField(); JTextField dob = new JTextField(); JTextField email = new JTextField();
-        form.add(new JLabel("First name:")); form.add(fn);
-        form.add(new JLabel("Last name:")); form.add(ln);
-        form.add(new JLabel("DOB (YYYY-MM-DD):")); form.add(dob);
-        form.add(new JLabel("Gender:")); form.add(gender);
-        form.add(new JLabel("Phone:")); form.add(phone);
-        form.add(new JLabel("Email:")); form.add(email);
-        int res = JOptionPane.showConfirmDialog(this, form, "Add Patient", JOptionPane.OK_CANCEL_OPTION);
-        if (res==JOptionPane.OK_OPTION) {
+        // Build a resizable dialog with full form inputs for Patient
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Register Patient", true);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setBorder(new EmptyBorder(12,12,12,12));
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.insets = new Insets(4,4,4,4);
+        gc.anchor = GridBagConstraints.WEST;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+
+        JTextField fn = new JTextField(); JTextField ln = new JTextField(); JTextField mn = new JTextField();
+        JTextField dob = new JTextField(); JTextField gender = new JTextField();
+        JTextField phone = new JTextField(); JTextField email = new JTextField(); JTextField address = new JTextField();
+
+        int row = 0;
+        addRow(form, gc, row++, "First name:", fn);
+        addRow(form, gc, row++, "Middle name:", mn);
+        addRow(form, gc, row++, "Last name:", ln);
+        addRow(form, gc, row++, "DOB (YYYY-MM-DD):", dob);
+        addRow(form, gc, row++, "Gender:", gender);
+        addRow(form, gc, row++, "Phone:", phone);
+        addRow(form, gc, row++, "Email:", email);
+        addRow(form, gc, row++, "Address:", address);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton ok = new JButton("Register"); JButton cancel = new JButton("Cancel");
+        buttons.add(cancel); buttons.add(ok);
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.add(new JScrollPane(form), BorderLayout.CENTER);
+        root.add(buttons, BorderLayout.SOUTH);
+        dialog.setContentPane(root);
+        dialog.setSize(600, 500);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(true);
+
+        cancel.addActionListener(e -> dialog.dispose());
+        ok.addActionListener(e -> {
             try {
                 java.time.LocalDate ld = java.time.LocalDate.parse(dob.getText().trim());
-                patientService.createPatient(fn.getText().trim(), ln.getText().trim(), ld, gender.getText().trim(), phone.getText().trim(), email.getText().trim(), "");
-                JOptionPane.showMessageDialog(this, "Patient created."); reload();
+                Patient saved = patientService.createPatient(fn.getText().trim(), ln.getText().trim(), ld, gender.getText().trim(), phone.getText().trim(), email.getText().trim(), address.getText().trim());
+                // Show provisioned account
+                patientService.getProvisionedAccountForPatient(saved.getId()).ifPresentOrElse(acc -> {
+                    JOptionPane.showMessageDialog(dialog, "Patient registered.\nUsername: " + acc.username + "\nPassword: " + acc.temporaryPassword, "Account Created", JOptionPane.INFORMATION_MESSAGE);
+                }, () -> {
+                    JOptionPane.showMessageDialog(dialog, "Patient registered, but account generation failed.", "Warning", JOptionPane.WARNING_MESSAGE);
+                });
+                dialog.dispose();
+                reload();
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Invalid input: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(dialog, "Invalid input: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
-        }
+        });
+
+        dialog.setVisible(true);
+    }
+
+    private void addRow(JPanel form, GridBagConstraints gc, int row, String label, JComponent field) {
+        gc.gridx = 0; gc.gridy = row; gc.weightx = 0; gc.gridwidth = 1; form.add(new JLabel(label), gc);
+        gc.gridx = 1; gc.gridy = row; gc.weightx = 1; gc.gridwidth = 1; form.add(field, gc);
     }
 }

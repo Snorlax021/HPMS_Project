@@ -19,7 +19,6 @@ import javax.swing.event.*;
 import Model.Role;
 import Model.User;
 import Service.UserService;
-import Service.PatientService;
 import Service.DoctorServiceImpl;
 import Model.Doctor;
 import java.time.LocalDate;
@@ -28,7 +27,7 @@ import java.io.File;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
-import UI.DeactivatedAccountsPanel;
+import Service.PatientService;
 
 public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
     private static final long serialVersionUID = 1L;
@@ -300,10 +299,9 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0)); actionPanel.setOpaque(false);
         JButton bAdd = new JButton("Add User"); styleSecondaryButton(bAdd); bAdd.addActionListener(e -> openAddUserDialog());
         JButton bEdit = new JButton("Edit"); styleSecondaryButton(bEdit); bEdit.addActionListener(e -> openEditUserDialog());
-        JButton bReset = new JButton("Reset PW"); styleSecondaryButton(bReset); bReset.addActionListener(e -> openResetPasswordDialog());
         JButton bDeactivate = new JButton("Deactivate"); styleSecondaryButton(bDeactivate); bDeactivate.addActionListener(e -> openDeactivateUserDialog());
-        JButton bExport = new JButton("Export"); styleSecondaryButton(bExport); bExport.addActionListener(e -> openExportDialog());
-        actionPanel.add(bAdd); actionPanel.add(bEdit); actionPanel.add(bReset); actionPanel.add(bDeactivate); actionPanel.add(bExport);
+        JButton bReset = new JButton("Reset Password"); styleSecondaryButton(bReset); bReset.addActionListener(e -> openResetPasswordDialog());
+        actionPanel.add(bDeactivate); actionPanel.add(bEdit); actionPanel.add(bReset); actionPanel.add(bAdd);
         topPanel.add(actionPanel, BorderLayout.EAST);
 
         root.add(topPanel, BorderLayout.NORTH);
@@ -656,28 +654,15 @@ public class AdminDashboardPanel extends JPanel implements GlobalSearchable {
         }
 
         if (chosen == Role.PATIENT) {
-            // Two-column patient form: left = personal & contact, right = ID, medical, insurance, system
-            // Instead of duplicating the full patient form, show the Staff's Patient Registration panel full-screen inside a dialog
-            StaffDashboardPanel staffPanel = new StaffDashboardPanel(null, "REGISTRATION", null);
-
-            JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Patient Registration (Admin)", Dialog.ModalityType.APPLICATION_MODAL);
-            dlg.getContentPane().setLayout(new BorderLayout());
-            JScrollPane sp = new JScrollPane(staffPanel);
-            dlg.getContentPane().add(sp, BorderLayout.CENTER);
-            JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-            JButton cancelB = new JButton("Close");
-            foot.add(cancelB);
-            dlg.getContentPane().add(foot, BorderLayout.SOUTH);
-            cancelB.addActionListener(e -> dlg.dispose());
-            // make truly fullscreen
-            Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-            dlg.setUndecorated(true);
-            dlg.setBounds(0, 0, screen.width, screen.height);
-            dlg.setVisible(true);
-             // After dialog closes, refresh tables
-             reloadUsersTable();
-             return;
-         }
+            // Open the unified patient registration dialog (auto-generates credentials)
+            PatientRegistrationDialog.Result res = PatientRegistrationDialog.showDialog(this);
+            // After dialog closes, refresh tables if a patient/user was created
+            if (res != null && res.patient != null) {
+                reloadUsersTable();
+                if (patientPanel != null) patientPanel.reloadPanel();
+            }
+            return;
+        }
 
         // Fallback: simple user form for ADMIN/USER/other
         JPanel panel = new JPanel(new GridLayout(3,2,8,8));

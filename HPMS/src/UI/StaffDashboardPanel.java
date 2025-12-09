@@ -569,88 +569,76 @@ public class StaffDashboardPanel extends JPanel implements GlobalSearchable {
 
     // DIALOG METHODS (Patient Registration)
     private void openAddPatientDialog() {
-        // Make the dialog larger and fields wider for easier input
-        JPanel panel = new JPanel(new GridLayout(7,2,10,10));
-        panel.setBorder(new EmptyBorder(14,14,14,14));
-        panel.setPreferredSize(new Dimension(720, 420));
-        JTextField firstName = new JTextField(); firstName.setColumns(30); panel.add(new JLabel("First Name:")); panel.add(firstName);
-        JTextField lastName = new JTextField(); lastName.setColumns(30); panel.add(new JLabel("Last Name:")); panel.add(lastName);
-        JTextField dobField = new JTextField(); dobField.setColumns(20); panel.add(new JLabel("DOB (YYYY-MM-DD):")); panel.add(dobField);
-        JTextField gender = new JTextField(); gender.setColumns(10); panel.add(new JLabel("Gender:")); panel.add(gender);
-        JTextField phone = new JTextField(); phone.setColumns(18); panel.add(new JLabel("Phone:")); panel.add(phone);
-        JTextField email = new JTextField(); email.setColumns(25); panel.add(new JLabel("Email:")); panel.add(email);
-        JTextField address = new JTextField(); address.setColumns(30); panel.add(new JLabel("Address:")); panel.add(address);
-        int r = showDialog(panel, "Register New Patient");
-        if (r == JOptionPane.OK_OPTION) {
-            String fn = firstName.getText().trim();
-            String ln = lastName.getText().trim();
-            String dobStr = dobField.getText().trim();
-            String gen = gender.getText().trim();
-            String ph = phone.getText().trim();
-            String em = email.getText().trim();
-            String addr = address.getText().trim();
-
-            // Required fields: all of them (as requested)
-            java.util.List<String> missing = new java.util.ArrayList<>();
-            if (fn.isEmpty()) missing.add("First Name");
-            if (ln.isEmpty()) missing.add("Last Name");
-            if (dobStr.isEmpty()) missing.add("DOB");
-            if (gen.isEmpty()) missing.add("Gender");
-            if (ph.isEmpty()) missing.add("Phone");
-            if (em.isEmpty()) missing.add("Email");
-            if (addr.isEmpty()) missing.add("Address");
-            if (!missing.isEmpty()) { warn("Please fill required fields: " + String.join(", ", missing)); return; }
-
-            LocalDate dob = null;
-            try {
-                dob = LocalDate.parse(dobStr);
-            } catch (Exception ex) {
-                warn("DOB format should be YYYY-MM-DD"); return;
-            }
-            // Disallow DOB in the future (no year beyond current year)
-            LocalDate today = LocalDate.now();
-            if (dob.isAfter(today)) { warn("DOB cannot be in the future."); return; }
-            if (dob.getYear() > today.getYear()) { warn("DOB year cannot be beyond " + today.getYear()); return; }
-
-            PatientService ps = PatientService.getInstance();
-            Patient p;
-            try {
-                p = ps.createPatient(fn, ln, dob, gen, ph, em, addr);
-            } catch (RuntimeException ex) {
-                warn("Failed to create patient: " + ex.getMessage());
-                return;
-            }
-
-            // Update table view (now includes ID column)
-            int age = 0;
-            if (dob != null) {
-                try { age = Math.max(0, Period.between(dob, LocalDate.now()).getYears()); } catch (Exception ignored) {}
-            }
-            DefaultTableModel m = (DefaultTableModel) patientRegTable.getModel();
-            m.addRow(new Object[]{p.getId(), p.getFirstName() + " " + p.getLastName(), age, p.getGender(), "Active"});
-
-            // Show provisioned credentials
-            ps.getProvisionedAccountForPatient(p.getId()).ifPresentOrElse(acc -> {
-                JOptionPane.showMessageDialog(this,
-                    "Patient account has been created.\n\n" +
-                    "Username: " + acc.username + "\n" +
-                    "Temporary Password: " + acc.temporaryPassword + "\n\n" +
-                    "Please share these with the patient and ask them to change the password after first login.",
-                    "Account Created",
-                    JOptionPane.INFORMATION_MESSAGE);
-            }, () -> {
-                JOptionPane.showMessageDialog(this,
-                    "Patient registered, but account creation failed. You can create an account manually in the Users section.",
-                    "Account Not Created",
-                    JOptionPane.WARNING_MESSAGE);
-            });
+        PatientRegistrationDialog.Result res = PatientRegistrationDialog.showDialog(this);
+        if (res == null || res.patient == null) return;
+        Model.Patient p = res.patient;
+        int age = 0; try { age = Math.max(0, java.time.Period.between(p.getDateOfBirth(), java.time.LocalDate.now()).getYears()); } catch (Exception ignored) {}
+        javax.swing.table.DefaultTableModel m = (javax.swing.table.DefaultTableModel) patientRegTable.getModel();
+        m.addRow(new Object[]{p.getId(), (p.getFirstName()==null?"":p.getFirstName()) + " " + (p.getLastName()==null?"":p.getLastName()), age, p.getGender(), "Active"});
+        if (res.account != null) {
+            JOptionPane.showMessageDialog(this,
+                "Patient account has been created.\n\nUsername: " + res.account.username + "\nTemporary Password: " + res.account.temporaryPassword + "\n\nShare these with the patient.",
+                "Account Created",
+                JOptionPane.INFORMATION_MESSAGE);
         }
     }
     private void openViewPatientDialog() {
         int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}
         DefaultTableModel m=(DefaultTableModel)patientRegTable.getModel();
-        info(String.format("ID: %s\nName: %s\nAge: %s\nGender: %s\nStatus: %s",
-            m.getValueAt(row,0), m.getValueAt(row,1), m.getValueAt(row,2), m.getValueAt(row,3), m.getValueAt(row,4)));
+        String patientId = (String) m.getValueAt(row, 0);
+        Service.PatientService ps = Service.PatientService.getInstance();
+        java.util.Optional<Model.Patient> optP = ps.findById(patientId);
+        if (optP.isEmpty()) { warn("Patient record not found."); return; }
+        Model.Patient p = optP.get();
+        // Resolve username via linkedPatientId
+        String username = null;
+        for (Model.User u : Service.UserService.getInstance().getAllUsers()) {
+            try { if (patientId.equals(u.getLinkedPatientId())) { username = u.getUsername(); break; } } catch (Exception ignored) {}
+        }
+        Service.PatientService.PatientProfile prof = (username!=null) ? ps.getProfileByUsername(username) : new Service.PatientService.PatientProfile();
+
+        // Build a neat, resizable dialog panel
+        JPanel panel = new JPanel(new BorderLayout(12,12)); panel.setBorder(new EmptyBorder(12,12,12,12)); panel.setBackground(Color.WHITE);
+        JLabel title = new JLabel("Patient Details", SwingConstants.LEFT); title.setFont(FONT_SECTION); title.setForeground(COLOR_PRIMARY.darker()); panel.add(title, BorderLayout.NORTH);
+
+        JPanel grid = new JPanel(new GridBagLayout()); grid.setBackground(Color.WHITE);
+        GridBagConstraints gbc = new GridBagConstraints(); gbc.insets = new Insets(6,10,6,10); gbc.fill = GridBagConstraints.HORIZONTAL; gbc.gridx=0; gbc.gridy=0; gbc.weightx=0;
+        Dimension labelSize = new Dimension(180, 24);
+        java.util.function.BiConsumer<String,String> addRow = (label, value) -> {
+            JLabel l = new JLabel(label + ":"); l.setPreferredSize(labelSize); l.setForeground(COLOR_PRIMARY.darker());
+            gbc.gridx=0; gbc.weightx=0; grid.add(l, gbc);
+            gbc.gridx=1; gbc.weightx=1; JTextField tf = new JTextField(value==null?"":value); tf.setEditable(false); grid.add(tf, gbc); gbc.gridy++;
+        };
+        // Coalesce helper
+        java.util.function.BiFunction<String,String,String> coalesce = (a,b) -> (a!=null && !a.isBlank())?a:(b==null?"":b);
+        String dobStr = prof.dateOfBirth!=null && !prof.dateOfBirth.isBlank() ? prof.dateOfBirth : (p.getDateOfBirth()==null?"":p.getDateOfBirth().toString());
+        String ageStr = (p.getAge()!=null)?String.valueOf(p.getAge()):"";
+
+        addRow.accept("ID", p.getId());
+        addRow.accept("Patient Number", p.getPatientNumber());
+        addRow.accept("Name", coalesce.apply(prof.firstName, p.getFirstName()) + (prof.middleName==null||prof.middleName.isBlank()?"":" " + prof.middleName) + " " + coalesce.apply(prof.surname, p.getLastName()));
+        addRow.accept("Gender", coalesce.apply(prof.gender, p.getGender()));
+        addRow.accept("DOB", dobStr);
+        addRow.accept("Age", ageStr);
+        addRow.accept("Phone", coalesce.apply(prof.phone, p.getContactNumber()));
+        addRow.accept("Email", prof.email);
+        addRow.accept("Address", coalesce.apply(prof.address, p.getAddress()));
+        addRow.accept("Civil Status", prof.civilStatus);
+        addRow.accept("Blood Type", prof.bloodType!=null?prof.bloodType:p.getBloodType());
+        addRow.accept("Emergency Contact", (prof.emergencyContactName==null?"":prof.emergencyContactName) + (prof.emergencyContactNumber==null||prof.emergencyContactNumber.isBlank()?"":" ("+prof.emergencyContactNumber+")"));
+        // Optional richer medical/insurance fields from profile (if present)
+        addRow.accept("Allergies", prof.allergies);
+        addRow.accept("Medications", prof.currentMedications);
+        addRow.accept("Insurance Provider", prof.insuranceProvider);
+        addRow.accept("Insurance Number", prof.insuranceNumber);
+        addRow.accept("PhilHealth Number", prof.philHealthNumber);
+        addRow.accept("Insurance Expiry", prof.insuranceExpiry);
+
+        panel.add(new JScrollPane(grid), BorderLayout.CENTER);
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), "Patient Details", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.getContentPane().setLayout(new BorderLayout()); dlg.getContentPane().add(panel, BorderLayout.CENTER);
+        JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT)); foot.setOpaque(false); JButton close = new JButton("Close"); styleSecondaryButton(close); close.addActionListener(e->dlg.dispose()); foot.add(close); dlg.getContentPane().add(foot, BorderLayout.SOUTH);
+        dlg.setSize(800, 600); dlg.setLocationRelativeTo(this); dlg.setResizable(true); dlg.setVisible(true);
     }
     private void openDeactivatePatientDialog() {
         int row = patientRegTable.getSelectedRow(); if (row==-1){warn("Select a patient first"); return;}

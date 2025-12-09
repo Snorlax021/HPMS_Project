@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Patient service with basic CRUD plus per-username profile storage. */
 public class PatientService {
@@ -19,17 +20,33 @@ public class PatientService {
     private final ConcurrentHashMap<String, PatientProfile> profilesByUsername = new ConcurrentHashMap<>();
     // Store the latest provisioned credentials by patientId (transient, for display/testing only)
     private final ConcurrentHashMap<String, ProvisionedAccount> provisionedAccounts = new ConcurrentHashMap<>();
+    // Sequence for PT/PW account generation (in-memory). Starts at 1 -> PT0001/PW0001
+    private final AtomicInteger patientAccountSeq = new AtomicInteger(0);
     // Singleton holder
     private static final class Holder { static final PatientService INSTANCE = new PatientService(); }
     public static PatientService getInstance() { return Holder.INSTANCE; }
 
-    public PatientService() { this.repo = new InMemoryRepository<>(Patient::getId); }
+    public PatientService() { this.repo = new InMemoryRepository<>(Patient::getId); initPatientAccountSeqFromUsers(); }
+
+    private void initPatientAccountSeqFromUsers() {
+        int max = 0;
+        try {
+            for (Model.User u : UserService.getInstance().getAllUsers()) {
+                String un = u.getUsername();
+                if (un != null && un.startsWith("PT") && un.length() >= 6) {
+                    String digits = un.substring(2);
+                    try { int n = Integer.parseInt(digits); if (n > max) max = n; } catch (NumberFormatException ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+        patientAccountSeq.set(max);
+    }
 
     public Patient createPatient(String firstName, String lastName, LocalDate dob,
                                  String gender, String phone, String email, String address) {
         Patient p = new Patient(firstName, lastName, dob, gender, phone, email, address);
         Patient saved = repo.save(p);
-        // Auto-provision a user account for this patient
+        // Auto-provision a user account for this patient using PT/PW scheme
         autoProvisionPatientAccount(saved);
         return saved;
     }
@@ -126,6 +143,11 @@ public class PatientService {
         public String religion = "";
         public String preferredLanguage = "";
         public String preferredContactMethod = "";
+
+        // NEW: Additional medical info fields for Patient Dashboard profile
+        public String symptoms = "";       // free-form description of current symptoms
+        public Double heightCm = null;      // height in centimeters
+        public Double weightKg = null;      // weight in kilograms
     }
 
     /** Username + temp password issued to a newly created patient account. */
@@ -158,40 +180,26 @@ public class PatientService {
     private void autoProvisionPatientAccount(Patient patient) {
         if (patient == null) return;
         UserService userService = UserService.getInstance();
-        String base = (patient.getFirstName() + "." + patient.getLastName()).toLowerCase().replaceAll("[^a-z0-9]+", ".");
-        String username = base;
-        int attempt = 0;
-        while (userService.findByUsername(username).isPresent()) {
-            attempt++;
-            username = base + attempt;
-            if (attempt > 1000) { // fallback to UUID tail
-                username = base + Long.toHexString(Double.doubleToLongBits(Math.random())).substring(8);
-                break;
-            }
-        }
-        String tempPassword = generateTempPassword(patient);
+        // Generate PT/PW formatted credentials (PT0001, PW0001 ...)
+        int seq = patientAccountSeq.incrementAndGet();
+        String username = String.format("PT%04d", seq);
+        String tempPassword = String.format("PW%04d", seq);
         try {
             userService.createUser(username, tempPassword.toCharArray(), Role.PATIENT);
-            // Attempt to locate created user and attach linkedPatientId where supported
-            userService.findByUsername(username).ifPresent(u -> {
-                try { u.setLinkedPatientId(patient.getId()); } catch (Exception ignored) {}
-            });
+            userService.findByUsername(username).ifPresent(u -> { try { u.setLinkedPatientId(patient.getId()); } catch (Exception ignored) {} });
             provisionedAccounts.put(patient.getId(), new ProvisionedAccount(username, tempPassword));
         } catch (RuntimeException ex) {
-            // In case password policy or other issues, ensure we don't crash patient creation
-            provisionedAccounts.remove(patient.getId());
+            // If failure due to duplicate or policy, advance and retry once
+            try {
+                seq = patientAccountSeq.incrementAndGet();
+                username = String.format("PT%04d", seq);
+                tempPassword = String.format("PW%04d", seq);
+                userService.createUser(username, tempPassword.toCharArray(), Role.PATIENT);
+                userService.findByUsername(username).ifPresent(u -> { try { u.setLinkedPatientId(patient.getId()); } catch (Exception ignored) {} });
+                provisionedAccounts.put(patient.getId(), new ProvisionedAccount(username, tempPassword));
+            } catch (RuntimeException ex2) {
+                provisionedAccounts.remove(patient.getId());
+            }
         }
-    }
-
-    private String generateTempPassword(Patient p) {
-        // Pattern: Capitalized first name prefix + yyyy of DOB (or 1990 if null) + random 3-digit
-        String first = (p.getFirstName() == null || p.getFirstName().isBlank()) ? "Patient" : p.getFirstName().trim();
-        String cap = first.substring(0, Math.min(1, first.length())).toUpperCase() + first.substring(Math.min(1, first.length())).toLowerCase();
-        String year = (p.getDateOfBirth() != null) ? String.valueOf(p.getDateOfBirth().getYear()) : "1990";
-        int rnd = 100 + new Random().nextInt(900);
-        String pwd = cap + year + rnd; // contains letters+digits, length >= 8 for most names
-        // Ensure policy compliance (>=8 chars, letters+digits). If too short, append more digits.
-        while (pwd.length() < 8) pwd += Integer.toString(new Random().nextInt(10));
-        return pwd;
     }
 }

@@ -2,6 +2,7 @@ package UI;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.FlowLayout;
@@ -49,14 +50,14 @@ public class DashboardUI extends JFrame {
         panel.setPreferredSize(new Dimension(0, 60));
         contentPane.add(panel, BorderLayout.NORTH);
 
-        JLabel logoLabel = new JLabel("LOGO HERE");
+        JLabel logoLabel = new JLabel(" ");
         logoLabel.setForeground(Color.WHITE);
         logoLabel.setFont(new Font("Arial", Font.BOLD, 25));
         panel.add(logoLabel, BorderLayout.WEST);
 
-        JLabel titleLabel = new JLabel("HPMS: Hospital Patient Management System");
+        JLabel titleLabel = new JLabel("Hopewell General Hospital System");
         titleLabel.setForeground(Color.WHITE);
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         panel.add(titleLabel, BorderLayout.CENTER);
 
@@ -71,7 +72,7 @@ public class DashboardUI extends JFrame {
         rightPanel.add(roleLabel);
 
         if (currentUsername != null && !currentUsername.isBlank()) {
-            JLabel userLabel = new JLabel("Logged in: " + currentUsername);
+            JLabel userLabel = new JLabel("|Logged in: " + currentUsername);
             userLabel.setForeground(Color.WHITE);
             userLabel.setFont(new Font("Arial", Font.PLAIN, 20));
             rightPanel.add(userLabel);
@@ -79,6 +80,18 @@ public class DashboardUI extends JFrame {
 
         JButton logoutButton = new JButton("Logout");
         logoutButton.setToolTipText("Click to logout and return to login");
+        // Style: red-ish background, white text
+        Color logoutRed = new Color(200, 60, 60); // base red
+        Color logoutHover = new Color(220, 80, 80);
+        logoutButton.setBackground(logoutRed);
+        logoutButton.setForeground(Color.WHITE);
+        logoutButton.setFocusPainted(false);
+        logoutButton.setBorder(BorderFactory.createLineBorder(Color.WHITE));
+        logoutButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        logoutButton.addMouseListener(new java.awt.event.MouseAdapter(){
+            @Override public void mouseEntered(java.awt.event.MouseEvent e){ logoutButton.setBackground(logoutHover); }
+            @Override public void mouseExited(java.awt.event.MouseEvent e){ logoutButton.setBackground(logoutRed); }
+        });
         logoutButton.addActionListener(e -> {
             int result = JOptionPane.showConfirmDialog(
                 this,

@@ -32,6 +32,15 @@ public class Patient {
     private final String lastName;
     private final String gender; // compatibility alias for sex
 
+    // Extended clinical/admin fields for DB alignment
+    private final Integer age; // computed from DOB at creation time
+    private final String allergies;
+    private final String currentMedications;
+    private final String insuranceProvider;
+    private final String insuranceNumber;
+    private final String philHealthNumber;
+    private final java.time.LocalDate insuranceExpiry;
+
     // Minimal constructor
     public Patient(User user,
                    String patientNumber,
@@ -58,6 +67,14 @@ public class Patient {
         this.firstName = null;
         this.lastName = null;
         this.gender = null;
+        // new fields (defaults)
+        this.age = computeAge(this.dateOfBirth);
+        this.allergies = null;
+        this.currentMedications = null;
+        this.insuranceProvider = null;
+        this.insuranceNumber = null;
+        this.philHealthNumber = null;
+        this.insuranceExpiry = null;
     }
 
     // Convenience constructor used by older UI/service code (firstName, lastName, dob, gender, phone, email, address)
@@ -77,6 +94,20 @@ public class Patient {
         this.emergencyContactName = null;
         this.emergencyContactNumber = null;
         this.createdAt = Instant.now();
+        // new fields (defaults)
+        this.age = computeAge(this.dateOfBirth);
+        this.allergies = null;
+        this.currentMedications = null;
+        this.insuranceProvider = null;
+        this.insuranceNumber = null;
+        this.philHealthNumber = null;
+        this.insuranceExpiry = null;
+    }
+
+    private Integer computeAge(LocalDate dob) {
+        if (dob == null) return null;
+        java.time.Period p = java.time.Period.between(dob, java.time.LocalDate.now());
+        return Math.max(0, p.getYears());
     }
 
     private String normalize(String s) { return (s == null || s.isBlank()) ? null : s.trim(); }
@@ -116,13 +147,21 @@ public class Patient {
     public String getEmergencyContactName() { return emergencyContactName; }
     public String getEmergencyContactNumber() { return emergencyContactNumber; }
 
+    public Integer getAge() { return age; }
+    public String getAllergies() { return allergies; }
+    public String getCurrentMedications() { return currentMedications; }
+    public String getInsuranceProvider() { return insuranceProvider; }
+    public String getInsuranceNumber() { return insuranceNumber; }
+    public String getPhilHealthNumber() { return philHealthNumber; }
+    public java.time.LocalDate getInsuranceExpiry() { return insuranceExpiry; }
+
     public Instant getCreatedAt() { return createdAt; }
 
     @Override
     public String toString() {
         return "Patient{" +
                 "patientId='" + patientId + '\'' +
-                ", userId='" + user.getId() + '\'' +
+                ", userId='" + (user==null?null:user.getId()) + '\'' +
                 ", patientNumber='" + patientNumber + '\'' +
                 ", dateOfBirth=" + dateOfBirth +
                 ", sex='" + sex + '\'' +
@@ -132,6 +171,13 @@ public class Patient {
                 ", contactNumber='" + contactNumber + '\'' +
                 ", emergencyContactName='" + emergencyContactName + '\'' +
                 ", emergencyContactNumber='" + emergencyContactNumber + '\'' +
+                ", age=" + age +
+                ", allergies='" + allergies + '\'' +
+                ", currentMedications='" + currentMedications + '\'' +
+                ", insuranceProvider='" + insuranceProvider + '\'' +
+                ", insuranceNumber='" + insuranceNumber + '\'' +
+                ", philHealthNumber='" + philHealthNumber + '\'' +
+                ", insuranceExpiry=" + insuranceExpiry +
                 '}';
     }
 
