@@ -46,7 +46,7 @@ public class LoginUI extends JFrame {
         contentPane.add(panelTop, BorderLayout.NORTH);
         panelTop.setLayout(null);
         
-        JLabel lblHeader = new JLabel("\t\t\t\t\tHopewell General Hospital System");
+        JLabel lblHeader = new JLabel("Hopewell General Hospital System");
         lblHeader.setForeground(Color.WHITE);
         lblHeader.setFont(new Font("Tahoma", Font.BOLD, 20));
         lblHeader.setBounds(20, 20, 400, 35);
